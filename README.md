@@ -1,7 +1,14 @@
 # trapper-client
-Python wrapper for Trapper API
+Python wrapper for [Trapper API]("https://gitlab.com/trapper-projec")
+This work is heavily inspired by the Python wrapper for Zoom API [Zoomus](https://github.com/prschmid/zoomus)
 
 ## Installation
+
+```
+git clone https://github.com/ijfvianauhu/trapper-client
+cd trapper-client
+poetry install
+```
 
 ## Configuration
 
@@ -14,14 +21,31 @@ TrapperClient supports two authentication methods against Trapper:
 * Token-based authentication (using an API token)
 * User/password authentication (using a username and password)
 
-By default, TrapperClient will try to authenticate with a token.
+By default, TrapperClient will try to authenticate with a token.  If no token is provided, it will automatically fall 
+back to username and password authentication.
 
-If no token is provided, it will automatically fall back to username and password authentication.
+To create a TrapperClient instance using username and password:
 
-TrapperClient can be initialized in two ways: either by using environment variables or by passing the Trapper connection 
-parameters directly when creating the object.
+```python
+from trapper_client.TrapperClient import TrapperClient
 
-If we want to use environment variables, we can do the following:
+trapper_client = TrapperClient(
+    trapper_url="https://trapper.example.org",
+    trapper_user="my_user",
+    trapper_password="my_password"
+)
+```
+But if you want to use token-based authentication, you can do it like this:
+
+```python
+trapper_client = TrapperClient(
+    trapper_url="https://trapper.example.org",
+    trapper_token="my_user",
+)
+```
+
+Also, TrapperClient can be initialized by using environment variables. If we want to use environment variables, we can
+do the following:
 
 ```python
 from trapper_client.TrapperClient import TrapperClient
@@ -34,20 +58,6 @@ This code assumes the following environment variables are defined:
 * TRAPPER_USER
 * TRAPPER_PASSWORD
 * TRAPPER_ACCESS_TOKEN
-
-Alternatively, you can initialize TrapperClient by explicitly passing the Trapper connection parameters when creating 
-the object. This approach does not rely on environment variables and instead requires you to provide the values directly 
-in your code:
-
-```python
-from trapper_client.TrapperClient import TrapperClient
-
-trapper_client = TrapperClient(
-    trapper_url="https://trapper.example.org",
-    trapper_user="my_user",
-    trapper_password="my_password"
-)
-```
 
 ### Locations
 
