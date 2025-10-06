@@ -98,6 +98,25 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
         return self.get_all(
             filter_fn=lambda dep: dep.name == project_acro
         )
+
+    def get_by_collection(self, collection_id: str) -> T:
+        cps = self.get_all()
+        result = []
+        for cp in cps["results"]:
+            collections = CollectionsComponent(self._client).get_by_classification_project(int(cp["pk"]))
+            found = any(c.collection_pk == collection_id for c in collections.results)
+            if found:
+                result.append(cp)
+
+        pagination = cps["pagination"]
+        pagination["count"] = len(result)
+
+        data = {"pagination": pagination, "results": result}
+
+        filtered_data = data
+
+        return filtered_data
+
 #
 # ResearchProjectsComponent
 #
@@ -116,16 +135,28 @@ class ResearchProjectsComponent(TrapperAPIComponent):
             filter_fn=lambda dep: dep.name == project_acro
         )
 
+    def get_by_collection(self, collection_id: int) -> T:
+        rps = self.get_all()
+        result = []
+        for cp in rps["results"]:
+            collections = CollectionsComponent(self._client).get_by_research_project(int(cp["pk"]))
+            found = any(c.collection_pk == collection_id for c in collections.results)
+            if found:
+                result.append(cp)
+
+        pagination = rps["pagination"]
+        pagination["count"] = len(result)
+
+        data = {"pagination": pagination, "results": result}
+
+        filtered_data = data
+        return data
+
     def get_by_owner(self, owner: str) -> T:
         return self.get_all(
             filter_fn=lambda dep: dep.owner == owner
         )
 
-    def get_by_collection(self, owner: str) -> T:
-
-        return self.get_all(
-            filter_fn=lambda dep: dep.owner == owner
-        )
     def get_my(self, username = "me") -> T:
         if username == "me":
             username = self._client.user_name
@@ -151,12 +182,8 @@ class ResearchProjectsComponent(TrapperAPIComponent):
 @attr.s
 class CollectionsComponent(TrapperAPIComponent):
     def __attrs_post_init__(self):
-        self._endpoint = "/media_classification/api/projects"
-        self._schema = Schemas.TrapperClassificationProjectList
-
-    def get_by_research_project(self, project_id: int) -> T:
-        "/research/api/project/{pk}/collections"
-        return self.get_all(query={"pk": project_id})
+        self._endpoint = "/storage/api/collections"
+        self._schema = Schemas.TrapperCollectionList
 
     def get_by_id(self, project_id: int) -> T:
         return self.get_all(query={"pk": project_id})
@@ -165,6 +192,16 @@ class CollectionsComponent(TrapperAPIComponent):
         return self.get_all(
             filter_fn=lambda dep: dep.name == project_acro
         )
+
+    def get_by_research_project(self, project_id: int) -> T:
+        endpoint = f"/research/api/project/{project_id}/collections"
+        res =  self._client.get_all_pages(endpoint)
+        return self._schema(**res)
+
+    def get_by_classification_project(self, project_id: int) -> T:
+        endpoint = f"/media_classification/api/project/{project_id}/collections"
+        res = self._client.get_all_pages(endpoint)
+        return self._schema(**res)
 
 @attr.s
 class ResourcesComponent(TrapperAPIComponent):
@@ -277,6 +314,7 @@ class TrapperClient:
         self.resources: ResourcesComponent = ResourcesComponent(self.raw)
         self.media: MediaComponent = MediaComponent(self.raw)
         self.observations: ObservationsComponent = ObservationsComponent(self.raw)
+        self.collections: CollectionsComponent = CollectionsComponent(self.raw)
 
     @classmethod
     def from_environment(cls) -> "TrapperClient":

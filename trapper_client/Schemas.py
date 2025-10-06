@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, Field, ConfigDict, HttpUrl, field_validator
 from datetime import datetime
 from typing_extensions import Literal
@@ -141,26 +141,47 @@ class TrapperCollectionRole(BaseModel):
     profile: str
     roles: List[str]
 
+# Obtenido de consultar por CP
+class TrapperCollectionCP(BaseModel):
+    pk: int
+    collection_pk: int
+    name: str
+    status: str
+    is_active: bool
+    detail_data: str
+    classify_data: str
+    approved_count: int
+    classified_count: int
+    total_count: int
+
+# Obtenido de consultar por RP
+class TrapperCollectionRP(BaseModel):
+    pk: int
+    collection_pk: int
+    name: str
+    owner: Optional[str] = None
+    owner_profile: Optional[str] = None
+    status: Optional[str] = None
+    date_created: Optional[datetime] = None
+    description: Optional[str] = None
+    detail_data: Optional[str] = None
+    delete_data: Optional[str] = None
+
 class TrapperCollection(BaseModel):
     pk: int
     name: str
-    owner: str
-    owner_profile: str
-    acronym: str
-    keywords: List[str]
+    owner: Optional[str] = None
+    owner_profile: Optional[str] = None
     description: Optional[str] = None
-    date_created: datetime
-    project_roles: List[TrapperCollectionRole]
+    status: Optional[str] = None
     update_data: Optional[str] = None
     detail_data: Optional[str] = None
     delete_data: Optional[str] = None
-    status: Optional[bool] = None
 
 class TrapperCollectionList(BaseModel):
     pagination: Pagination
-    results: List[TrapperCollection]
+    results: List[Union[TrapperCollection, TrapperCollectionRP, TrapperCollectionCP]]
 
-#
 # Resources
 #
 
