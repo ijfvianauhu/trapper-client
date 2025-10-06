@@ -11,11 +11,6 @@ from typing_extensions import Literal
 
 from trapper_client import err
 
-logging.basicConfig(
-    level=logging.DEBUG,  # muestra DEBUG y superior
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-
 @attr.s
 class APIClientBase:
     access_token: str = attr.ib(repr=False)
