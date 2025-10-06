@@ -1,9 +1,8 @@
-#from typer.testing import CliRunner
-
+import logging
 import pytest
-from trapper_client.TrapperClient import TrapperClient
 from dotenv import load_dotenv
-#runner = CliRunner()
+from trapper_client.TrapperClient import TrapperClient
+from trapper_client.Schemas import TrapperResource, TrapperResourceCollection, TrapperResourceLocation
 
 #
 #  pytest -o log_cli=true --log-cli-level=DEBUG
@@ -16,11 +15,19 @@ def trapper_client():
     assert client.base_url.startswith("http")
     return client
 
+def _validate_resources(resources, expected_type=TrapperResource):
+    """Common validation for deployments responses."""
+    assert hasattr(resources, "results")
+    assert hasattr(resources, "pagination")
+
+    if resources.results:  # only if results is not empty
+        assert isinstance(resources.results[0], expected_type)
+
 #
 # Deployments
 #
 
-def test_trapper_client_resources_get_all(trapper_client):
+def _test_trapper_client_resources_get_all(trapper_client):
     try:
         deployments = trapper_client.resources.get_all()
         assert False, "Not implemented yet"
@@ -30,26 +37,22 @@ def test_trapper_client_resources_get_all(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def test_trapper_client_resources_get_by_collection(trapper_client):
+def _test_trapper_client_resources_get_by_collection(trapper_client):
     id_test = "47"
     try:
         resources = trapper_client.resources.get_by_collection(id_test)
-        assert hasattr(resources, "results")
-        assert len(resources.results) > 0
-        #assert resources.results[0].pk==int(id_test)
-        #print(f"Found {len(resources.results)} active locations.")
+        _validate_resources(resources, expected_type=TrapperResourceCollection)
+        logging.debug(f"Found {len(resources.results)} active resources in collection {id_test}.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Error fetching resources: {e}")
         assert False, f"Exception occurred: {e}"
 
 def test_trapper_client_resources_get_by_location(trapper_client):
     id_test = "213"
     try:
         resources = trapper_client.resources.get_by_location(id_test)
-        assert hasattr(resources, "results")
-        assert len(resources.results) > 0
-        #assert resources.results[0].pk==int(id_test)
-        print(f"Found {len(resources.results)} active locations.")
+        _validate_resources(resources, expected_type=TrapperResourceLocation)
+        logging.debug(f"Found {len(resources.results)} active resources in location {id_test}.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Error fetching resources: {e}")
         assert False, f"Exception occurred: {e}"

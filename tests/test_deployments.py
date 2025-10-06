@@ -1,9 +1,8 @@
-#from typer.testing import CliRunner
-
+import logging
 import pytest
-from trapper_client.TrapperClient import TrapperClient
 from dotenv import load_dotenv
-#runner = CliRunner()
+from trapper_client.TrapperClient import TrapperClient
+from trapper_client.Schemas import TrapperDeployment
 
 #
 #  pytest -o log_cli=true --log-cli-level=DEBUG
@@ -16,6 +15,14 @@ def trapper_client():
     assert client.base_url.startswith("http")
     return client
 
+def _validate_deployments(deployments, expected_type=TrapperDeployment):
+    """Common validation for deployments responses."""
+    assert hasattr(deployments, "results")
+    assert hasattr(deployments, "pagination")
+
+    if deployments.results:  # only if results is not empty
+        assert isinstance(deployments.results[0], expected_type)
+
 #
 # Deployments
 #
@@ -23,22 +30,22 @@ def trapper_client():
 def test_trapper_client_deployments_get_all(trapper_client):
     try:
         deployments = trapper_client.deployments.get_all()
-        assert hasattr(deployments, "results")
-        print(f"Found {len(deployments.results)} active locations.")
+        _validate_deployments(deployments)
+        logging.debug(f"Found {len(deployments.results)} active deployments.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Error fetching deployments: {e}")
         assert False, f"Exception occurred: {e}"
 
 def test_trapper_client_deployments_get_by_id(trapper_client):
     id_test = "46"
     try:
         deployments = trapper_client.deployments.get_by_id(id_test)
-        assert hasattr(deployments, "results")
+        _validate_deployments(deployments)
         assert len(deployments.results) == 1
         assert deployments.results[0].id==id_test
-        print(f"Found {len(deployments.results)} active locations.")
+        logging.debug(f"Found {len(deployments.results)} active deployments.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Error fetching deployments: {e}")
         assert False, f"Exception occurred: {e}"
 
 def test_trapper_client_deployments_by_acronym(trapper_client):
@@ -46,9 +53,20 @@ def test_trapper_client_deployments_by_acronym(trapper_client):
 
     try:
         deployments = trapper_client.deployments.get_by_acronym(acro_test)
-        assert hasattr(deployments, "results")
-        assert len(deployments.results) == 1
-        assert deployments.results[0].deploymentID==acro_test
+        _validate_deployments(deployments)
+        assert all(d.deploymentID == acro_test for d in deployments.results)
+        logging.debug(f"Found {len(deployments.results)} active deployments.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Error fetching deployments: {e}")
+        assert False, f"Exception occurred: {e}"
+
+def test_trapper_client_deployments_by_location(trapper_client):
+    id_test = "wicp_0001"
+    try:
+        deployments = trapper_client.deployments.get_by_location(id_test)
+        _validate_deployments(deployments)
+        assert all(d.locationID==id_test for d in deployments.results)
+        logging.debug(f"Found {len(deployments.results)} active deployments.")
+    except Exception as e:
+        logging.debug(f"Error fetching deployments: {e}")
         assert False, f"Exception occurred: {e}"

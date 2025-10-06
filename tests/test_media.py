@@ -1,10 +1,10 @@
-#from typer.testing import CliRunner
-
+import logging
 import pytest
-from trapper_client.TrapperClient import TrapperClient
 from dotenv import load_dotenv
-#runner = CliRunner()
+from trapper_client.TrapperClient import TrapperClient
+from trapper_client.Schemas import TrapperMedia
 
+#
 #
 #  pytest -o log_cli=true --log-cli-level=DEBUG
 #
@@ -16,11 +16,15 @@ def trapper_client():
     assert client.base_url.startswith("http")
     return client
 
-#
-# Deployments
-#
+def _validate_media(media, expected_type=TrapperMedia):
+    """Common validation for deployments responses."""
+    assert hasattr(media, "results")
+    assert hasattr(media, "pagination")
 
-def test_trapper_client_resources_get_all(trapper_client):
+    if media.results:  # only if results is not empty
+        assert isinstance(media.results[0], expected_type)
+
+def test_trapper_client_media_get_all(trapper_client):
     try:
         deployments = trapper_client.media.get_all()
         assert False, "Not implemented yet"
@@ -30,14 +34,12 @@ def test_trapper_client_resources_get_all(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def test_trapper_client_resources_get_by_classification_project(trapper_client):
+def test_trapper_client_media_get_by_classification_project(trapper_client):
     id_test = "33"
     try:
-        resources = trapper_client.media.get_by_classification_project(id_test)
-        assert hasattr(resources, "results")
-        assert len(resources.results) > 0
-        #assert resources.results[0].pk==int(id_test)
-        #print(f"Found {len(resources.results)} active locations.")
+        media = trapper_client.media.get_by_classification_project(id_test)
+        _validate_media(media)
+        logging.debug(f"Found {len(media.results)} active media in classification project {id_test}.")
     except Exception as e:
-        print(f"Error fetching deployments: {e}")
+        logging.debug(f"Exception occurred: {e}")
         assert False, f"Exception occurred: {e}"

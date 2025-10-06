@@ -2,9 +2,13 @@ from typing import TypeVar, Type, Dict, Any, Callable
 from urllib.parse import urlparse
 import attr, os
 
+from typing import Optional
+from pydantic import BaseModel
+import csv
+import logging
+
 from trapper_client import Schemas
 from trapper_client.APIClientBase import APIClientBase
-import trapper_client.Schemas
 
 T = TypeVar("T")
 
@@ -16,14 +20,30 @@ class TrapperAPIComponent:
 
     def get_all(self, query: Dict[str, Any] = None, filter_fn: Callable[[T], bool] = None) -> T:
         """
-        Recupera todos los resultados del endpoint.
-        - query: diccionario con parámetros de búsqueda
-        - filter_fn: función opcional para filtrar los resultados (lambda u objeto callable)
-        """
-        import json
-        res = self._client.get_all_pages(self._endpoint, query)
-        #print(json.dumps(res, indent=4, sort_keys=True))
+        Retrieve all results from the endpoint.
 
+        This method fetches all items from the API endpoint. Optionally, you can provide
+        query parameters to filter the request on the server side and/or a Python function
+        to filter the results locally.
+
+        Parameters
+        ----------
+        query : dict[str, Any], optional
+            A dictionary of query parameters to send with the request. Defaults to None.
+            Example: {"status": "active", "page_size": 100}
+
+        filter_fn : Callable[[T], bool], optional
+            A callable (e.g., lambda function) that receives each item and returns True
+            if the item should be included in the final result. Defaults to None.
+            Example: `lambda item: item.status == "active"`
+
+        Returns
+        -------
+        T
+            A list or a Pydantic model containing all retrieved items. The type depends on
+            the endpoint being accessed.
+        """
+        res = self._client.get_all_pages(self._endpoint, query)
         parsed = self._schema(**res)
 
         if filter_fn:
@@ -31,28 +51,97 @@ class TrapperAPIComponent:
 
         return parsed
 
-
 #
 # DeploymentsComponent
 #
 
 @attr.s
 class LocationsComponent(TrapperAPIComponent):
+    """
+    Component for interacting with the Locations endpoint of the Trapper API.
+
+    This component provides methods to retrieve location data, either individually
+    or in bulk, and handles the mapping of API responses to Pydantic models.
+    """
     def __attrs_post_init__(self):
         self._endpoint = "/geomap/api/locations/export/"
         self._schema = Schemas.TrapperLocationList
 
     def get_by_id(self, location_id: str) -> T:
+        """
+        Retrieve a single location by its ID.
+
+        Parameters
+        ----------
+        location_id : str
+            The unique identifier of the location to retrieve.
+
+        Returns
+        -------
+        Schemas.TrapperLocationLis
+            A Pydantic model representing the location.
+
+        Examples
+        --------
+        # Fetch a location by ID
+        location = locations_component.get_by_id("216")
+        print(location.name)
+        """
         return self.get_all(
             filter_fn=lambda dep: dep.id == location_id
         )
 
     def get_by_acronym(self, location_acro: str) -> T:
+        """
+        Retrieve locations matching a specific acronym.
+
+        This method fetches all locations and applies a local filter to return
+        only those whose `locationID` matches the provided acronym.
+
+        Parameters
+        ----------
+        location_acro : str
+            The acronym (locationID) used to filter locations.
+
+        Returns
+        -------
+        Schemas.TrapperLocationList
+            A list or Pydantic model containing the matching location(s).
+
+        Examples
+        --------
+        # Fetch a location with acronym "WICP_0002"
+        location = locations_component.get_by_acronym("WICP_0002")
+        print(location)
+        """
         return self.get_all(
             filter_fn=lambda dep: dep.locationID == location_acro
         )
 
     def get_by_research_project(self, research_project: str) -> T:
+        """
+            Retrieve locations associated with a specific research project.
+
+            This method fetches all locations and applies a local filter to return
+            only those linked to the specified research project.
+
+            Parameters
+            ----------
+            research_project : str
+                The ID or identifier of the research project to filter locations by.
+
+            Returns
+            -------
+            T
+                A list or Pydantic model containing the matching location(s).
+
+            Examples
+            --------
+            # Fetch locations associated with research project "16.0"
+            locations = locations_component.get_by_research_project("16.0")
+            for loc in locations:
+                print(loc.name)
+            """
         return self.get_all(
             filter_fn=lambda dep: dep.researchProject == research_project
         )
@@ -62,21 +151,88 @@ class LocationsComponent(TrapperAPIComponent):
 
 @attr.s
 class DeploymentsComponent(TrapperAPIComponent):
+    """
+    Component for interacting with the Deployments endpoint of the Trapper API.
+
+    This component provides methods to retrieve deployment data, either individually
+    or by applying filters such as acronym or associated location, and handles
+    the mapping of API responses to Pydantic models.
+    """
+
     def __attrs_post_init__(self):
+        """
+        Initialize the component by setting the API endpoint and the schema
+        used for response validation.
+        """
         self._endpoint = "/geomap/api/deployments/export/"
         self._schema = Schemas.TrapperDeploymentList
 
     def get_by_id(self, deployment_id: str) -> T:
+        """
+        Retrieve a single deployment by its unique ID.
+
+        Parameters
+        ----------
+        deployment_id : str
+            The unique identifier of the deployment.
+
+        Returns
+        -------
+        Schemas.TrapperDeploymentList
+            A Pydantic model representing the deployment(s).
+
+        Examples
+        --------
+        deployment = deployments_component.get_by_id("123")
+        print(deployment.deploymentID)
+        """
         return self.get_all(
             filter_fn=lambda dep: dep.id == deployment_id
         )
 
     def get_by_acronym(self, deployment_acro: str) -> T:
+        """
+        Retrieve deployments matching a specific acronym.
+
+        Parameters
+        ----------
+        deployment_acro : str
+            The acronym (deploymentID) used to filter deployments.
+
+        Returns
+        -------
+        Schemas.TrapperDeploymentList
+            A list or Pydantic model containing the matching deployment(s).
+
+        Examples
+        --------
+        deployment = deployments_component.get_by_acronym("DEP_001")
+        print(deployment)
+        """
         return self.get_all(
             filter_fn=lambda dep: dep.deploymentID == deployment_acro
         )
 
     def get_by_location(self, location_id: str) -> T:
+        """
+        Retrieve deployments associated with a specific location.
+
+        Parameters
+        ----------
+        location_id : str
+            The ID of the location to filter deployments by.
+
+        Returns
+        -------
+        Schemas.TrapperDeploymentList
+            A list or Pydantic model containing the deployment(s) at the specified location.
+
+        Examples
+        --------
+        deployments = deployments_component.get_by_location("LOC_001")
+        for dep in deployments:
+            print(dep.deploymentID)
+        """
         return self.get_all(
             filter_fn=lambda dep: dep.locationID == location_id
         )
@@ -102,20 +258,17 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
     def get_by_collection(self, collection_id: str) -> T:
         cps = self.get_all()
         result = []
-        for cp in cps["results"]:
-            collections = CollectionsComponent(self._client).get_by_classification_project(int(cp["pk"]))
+        for cp in cps.results:
+            logging.debug(f"cp {cp}")
+            collections = CollectionsComponent(self._client).get_by_classification_project(int(cp.pk))
             found = any(c.collection_pk == collection_id for c in collections.results)
             if found:
                 result.append(cp)
 
-        pagination = cps["pagination"]
-        pagination["count"] = len(result)
+        pagination = cps.pagination
+        pagination.count = len(result)
 
-        data = {"pagination": pagination, "results": result}
-
-        filtered_data = data
-
-        return filtered_data
+        return Schemas.TrapperClassificationProjectList(**{"pagination": pagination, "results":result})
 
 #
 # ResearchProjectsComponent
@@ -138,19 +291,16 @@ class ResearchProjectsComponent(TrapperAPIComponent):
     def get_by_collection(self, collection_id: int) -> T:
         rps = self.get_all()
         result = []
-        for cp in rps["results"]:
-            collections = CollectionsComponent(self._client).get_by_research_project(int(cp["pk"]))
-            found = any(c.collection_pk == collection_id for c in collections.results)
+        for cp in rps.results:
+            collections = CollectionsComponent(self._client).get_by_research_project(int(cp.pk))
+            found = any(int(c.collection_pk) == int(collection_id) for c in collections.results)
             if found:
                 result.append(cp)
 
-        pagination = rps["pagination"]
-        pagination["count"] = len(result)
+        pagination = rps.pagination
+        pagination.count = len(result)
 
-        data = {"pagination": pagination, "results": result}
-
-        filtered_data = data
-        return data
+        return Schemas.TrapperResearchProjectList(**{"pagination": pagination, "results": result})
 
     def get_by_owner(self, owner: str) -> T:
         return self.get_all(
@@ -326,3 +476,45 @@ class TrapperClient:
             user_password=env.get("TRAPPER_USER_PASSWORD", None),
         )
 
+    @staticmethod
+    def export_list_to_csv(data_list: BaseModel, output_file: Optional[str] = None,
+                           include_pagination: bool = False):
+        """
+        Export a Pydantic list object with pagination to CSV.
+
+        :param data_list: Pydantic model containing 'pagination' and 'results'
+        :param output_file: Optional path to a CSV file. Defaults to stdout.
+        :param include_pagination: If True, adds pagination fields to each row.
+        """
+        if not hasattr(data_list, "results") or not hasattr(data_list, "pagination"):
+            raise ValueError("The provided object must have 'results' and 'pagination' attributes.")
+
+        results = data_list.results
+        if not results:
+            print("No data to export.")
+            return
+
+        # Base field names from the first result
+        fieldnames = [
+            field.alias if field.alias else name
+            for name, field in type(results[0]).model_fields.items()
+        ]
+
+        # Add pagination fields if requested
+        if include_pagination:
+            pagination_fields = ["page", "page_size", "pages", "count"]
+            fieldnames = pagination_fields + fieldnames
+
+        output = open(output_file, "w", newline="", encoding="utf-8") if output_file else sys.stdout
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for item in results:
+            row = item.model_dump(by_alias=True)
+            if include_pagination:
+                row = {**data_list.pagination.model_dump(), **row}
+            writer.writerow(row)
+
+        if output_file:
+            output.close()
+            print(f"CSV written to {output_file}")

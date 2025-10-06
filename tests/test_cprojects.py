@@ -1,9 +1,8 @@
-#from typer.testing import CliRunner
-
+import logging
 import pytest
-from trapper_client.TrapperClient import TrapperClient
 from dotenv import load_dotenv
-#runner = CliRunner()
+from trapper_client.TrapperClient import TrapperClient
+from trapper_client.Schemas import TrapperClassificationProject
 
 #
 #  pytest -o log_cli=true --log-cli-level=DEBUG
@@ -16,27 +15,47 @@ def trapper_client():
     assert client.base_url.startswith("http")
     return client
 
+def _validate_cprojects(cprojects, expected_type=TrapperClassificationProject):
+    """Common validation for deployments responses."""
+    assert hasattr(cprojects, "results")
+    assert hasattr(cprojects, "pagination")
+
+    if cprojects.results:  # only if results is not empty
+        assert isinstance(cprojects.results[0], expected_type)
+
 #
 # Classification Projects
 #
 
-def test_trapper_client_classification_projects_get_All(trapper_client):
+def test_trapper_client_classification_projects_get_all(trapper_client):
     try:
         cp = trapper_client.classification_projects.get_all()
-        assert hasattr(cp, "results")
-        print(f"Found {len(cp.results)} active cp.")
+        _validate_cprojects(cp)
+        logging.debug(f"Found {len(cp.results)} active cp.")
     except Exception as e:
-        print(f"Error fetching cp: {e}")
+        logging.debug(f"Error fetching cp: {e}")
         assert False, f"Exception occurred: {e}"
 
 def test_trapper_client_classification_project_by_id(trapper_client):
-    id_test = 12222
+    id_test = 33
 
     try:
         cp = trapper_client.classification_projects.get_by_id(id_test)
-        assert hasattr(cp, "results")
-        assert len(cp.results) == 1
+        _validate_cprojects(cp)
         assert cp.results[0].pk == id_test
+        logging.debug(f"Found {len(cp.results)} active cp.")
+    except Exception as e:
+        print(f"Error fetching locations: {e}")
+        assert False, f"Exception occurred: {e}"
+
+def test_trapper_client_classification_project_by_collection(trapper_client):
+    id_test = 47
+
+    try:
+        cp = trapper_client.classification_projects.get_by_collection(id_test)
+        _validate_cprojects(cp)
+        #assert all(d.collection_pk==id_test for d in cp.results)
+        logging.debug(f"Found {len(cp.results)} active cp.")
     except Exception as e:
         print(f"Error fetching locations: {e}")
         assert False, f"Exception occurred: {e}"

@@ -185,6 +185,35 @@ class TrapperCollectionList(BaseModel):
 # Resources
 #
 
+class TrapperResourceCollection(BaseModel):
+    pk: int
+    name: str
+    owner: Optional[str] = None
+    owner_profile: Optional[str] = None
+    resource_type: str
+    date_recorded: datetime
+    observation_type: Optional[List[str]] = None
+    species: Optional[List[str]] = None
+    tags: List[str]
+    url: str
+    url_original: str
+    mime: str
+    thumbnail_url: str
+    update_data: str
+    detail_data: str
+    delete_data: str
+    date_recorded_correct: bool
+
+class TrapperResourceLocation(BaseModel):
+    pk: int
+    name: str
+    resource_type: str
+    deployment: str
+    date_recorded: datetime
+    tags: List[str]
+    thumbnail_url: str
+    detail_data: str
+
 class TrapperResource(BaseModel):
     pk: int
     name: str
@@ -208,6 +237,7 @@ class TrapperResource(BaseModel):
 class TrapperResourceList(BaseModel):
     pagination: Pagination
     results: List[TrapperResource]
+    results: List[Union[TrapperResourceCollection, TrapperResourceLocation]]
 
 ###
 ### Media

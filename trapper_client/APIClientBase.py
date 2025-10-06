@@ -101,29 +101,16 @@ class APIClientBase:
                 csv_text = r.text
                 reader = csv.DictReader(io.StringIO(csv_text))
                 rows = list(reader)
-
-                # paginación
-                per_page = 10
                 total = len(rows)
-                pages = (total + per_page - 1) // per_page
-
-                page = 1
-                if query and "page" in query:
-                    try:
-                        page = max(1, int(query["page"]))
-                    except ValueError:
-                        page = 1
-
-                paged_rows = self._paginate(rows, page, per_page)
 
                 response_obj = {
                     "pagination": {
-                        "page": page,
-                        "page_size": per_page,
-                        "pages": pages,
+                        "page": 1,
+                        "page_size": total,
+                        "pages": 1,
                         "count": total,
                     },
-                    "results": paged_rows,
+                    "results": rows,
                 }
 
                 import json
