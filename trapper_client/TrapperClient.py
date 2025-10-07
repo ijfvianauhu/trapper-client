@@ -411,7 +411,7 @@ class MediaComponent(TrapperAPIComponent):
         self._endpoint = "/media_classification/api/media/{cp}/"
         self._schema = Schemas.TrapperMediaList
 
-    def _download_trapper_media_list(media_list: TrapperMediaList, zip_filename_base: str = None) -> List[str]:
+    def _download_trapper_media_list(self,media_list: TrapperMediaList, zip_filename_base: str = None) -> List[str]:
         MAX_ZIP_SIZE = 2 * 1024 ** 3  # 2 GB
         temp_dir = tempfile.gettempdir()
 
@@ -522,13 +522,11 @@ class MediaComponent(TrapperAPIComponent):
     def download_by_classification_project(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
         results = self.get_by_classification_project(cp_id,query)
         zip_files=self._download_trapper_media_list(results, zip_filename_base)
-
         return zip_files
 
     def download_by_classification_project_only_animals(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
         results = self.get_by_classification_project_only_animals(cp_id,query)
         zip_files=self._download_trapper_media_list(results, zip_filename_base)
-
         return zip_files
 
 @attr.s
