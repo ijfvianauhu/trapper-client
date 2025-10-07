@@ -1,4 +1,7 @@
-from typing import TypeVar, Type, Dict, Any, Callable
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import TypeVar, Type, Dict, Any, Callable, List
 from urllib.parse import urlparse
 import attr, os
 
@@ -411,9 +414,10 @@ class MediaComponent(TrapperAPIComponent):
         self._endpoint = "/media_classification/api/media/{cp}/"
         self._schema = Schemas.TrapperMediaList
 
-    def _download_trapper_media_list(self,media_list: TrapperMediaList, zip_filename_base: str = None) -> List[str]:
+    def _download_trapper_media_list(self,media_list: Schemas.TrapperMediaList, zip_filename_base: str = None) -> List[str]:
         MAX_ZIP_SIZE = 2 * 1024 ** 3  # 2 GB
-        temp_dir = tempfile.gettempdir()
+        import tempfile, requests, zipfile
+        temp_dir = Path(tempfile.mkdtemp(prefix="trapper_client_"))
 
         if zip_filename_base is None:
             zip_filename_base = "trapper_media_export"
@@ -464,7 +468,7 @@ class MediaComponent(TrapperAPIComponent):
         if zip_writer:
             zip_writer.close()
 
-        return zip_filename_base
+        return temp_dir
 
     def get_all(self, *args, **kwargs):
         raise NotImplementedError(
@@ -491,7 +495,7 @@ class MediaComponent(TrapperAPIComponent):
         """
 
         # Obtenemos los mediaid de los media que solo tengan animales
-        observations: ObservationsComponent = ObservationsComponent(self.raw)
+        observations: ObservationsComponent = ObservationsComponent(self._client)
         o = observations.get_by_classification_project(cp_id, query)
 
         mediaid_groups = defaultdict(list)
@@ -568,7 +572,6 @@ class TrapperClient:
     user_password: str = attr.ib(repr=False, default="")
 
     raw: APIClientBase = attr.ib(init=False, repr=False)
-    #locations: LocationsComponent = attr.ib(init=False, repr=False)
 
     def __attrs_post_init__(self):
         self.raw: APIClientBase = APIClientBase(
@@ -637,3 +640,5 @@ class TrapperClient:
 
         if output_file:
             output.close()
+
+        return output_file

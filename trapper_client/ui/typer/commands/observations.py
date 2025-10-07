@@ -36,7 +36,7 @@ def get_by_classification_project(
     result = trapper_client.observations.get_by_classification_project(cproject_id)
 
     if export:
-        trapper_client.export_list_to_csv(result, output_file=export)
-        TyperUtils.success(_(f"Observations stored successfully in {export}."))
+        file = trapper_client.export_list_to_csv(result, output_file=export)
+        TyperUtils.success(_(f"Observations stored successfully in {file}."))
     else:
         TyperUtils.json2Table(result, title=f"Observations obtained in classification project {cproject_id}", columns=["id","observationID","deploymentID","mediaID", "observationType", "scientificName", "bboxes"])

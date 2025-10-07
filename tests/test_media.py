@@ -43,3 +43,41 @@ def test_trapper_client_media_get_by_classification_project(trapper_client):
     except Exception as e:
         logging.debug(f"Exception occurred: {e}")
         assert False, f"Exception occurred: {e}"
+
+def _test_trapper_client_media_download_by_classification_project(trapper_client):
+    id_test = "33"
+    try:
+        media_file_dir = trapper_client.media.download_by_classification_project(id_test, zip_filename_base="test_media_cp_33")
+        assert media_file_dir.is_dir(), f"{media_file_dir} is not a directory"
+        zip_files = list(media_file_dir.glob("*.zip"))
+        assert len(zip_files) > 0, f".zip files not found in  {media_file_dir}"
+        logging.debug(f"Media files in classification project {id_test} were stored in {media_file_dir}.")
+    except Exception as e:
+        logging.debug(f"Exception occurred: {e}")
+        assert False, f"Exception occurred: {e}"
+
+def test_trapper_client_media_get_by_classification_project_only_animals(trapper_client):
+    id_test = "33"
+    try:
+        media = trapper_client.media.get_by_classification_project_only_animals(id_test)
+        _validate_media(media)
+        logging.debug(f"Found {len(media.results)} active media in classification project {id_test}.")
+    except Exception as e:
+        logging.debug(f"Exception occurred: {e}")
+        assert False, f"Exception occurred: {e}"
+
+"""def test_trapper_client_media_get_by_classification_project_only_animals(trapper_client) -> T:
+    id_test = "33"
+    try:
+        media = trapper_client.media.get_by_classification_project_only_animals(id_test)
+        _validate_media(media)
+        logging.debug(f"Found {len(media.results)} active media in classification project {id_test}.")
+    except Exception as e:
+        logging.debug(f"Exception occurred: {e}")
+        assert False, f"Exception occurred: {e}"
+"""
+
+"""
+   def _trapper_client_media_download_by_classification_project_only_animals(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
+download_by_classification_project
+"""

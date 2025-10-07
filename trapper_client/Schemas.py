@@ -282,7 +282,7 @@ class TrapperObservation(BaseModel):
     sex: Optional[str] = None
     behavior: Optional[str] = None
     individualID: Optional[str] = None
-    bboxes: Optional[List[float]] = None  # podría ser lista de coordenadas si contiene cajas
+    bboxes: Optional[List[List[float]]] = None
     classificationMethod: Optional[str] = None
     classifiedBy: Optional[str] = None
     classificationTimestamp: Optional[datetime] = None
@@ -297,6 +297,23 @@ class TrapperObservation(BaseModel):
             return None
         return v
 
+    @field_validator("bboxes", mode="before")
+    def parse_bboxes(cls, v):
+        import json, ast
+        if v in (None, "", []):  # vacío → lo dejo igual
+            return v
+        if isinstance(v, str):
+            try:
+                # primero intento JSON normal
+                return json.loads(v)
+            except Exception:
+                try:
+                    # si no es JSON válido, intento evaluarlo como lista de Python
+                    return ast.literal_eval(v)
+                except Exception:
+                    raise ValueError(f"Invalid bboxes format: {v}")
+
+        return v
 
 class TrapperObservationList(BaseModel):
     pagination: Pagination
