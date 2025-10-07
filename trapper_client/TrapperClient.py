@@ -248,6 +248,24 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
         self._schema = Schemas.TrapperClassificationProjectList
 
     def get_by_id(self, project_id: int) -> T:
+        """
+        Retrieve a single classification project by its unique ID.
+
+        Parameters
+        ----------
+        project_id : str
+            The unique identifier of the classification project.
+
+        Returns
+        -------
+        Schemas.TrapperClassificationProjectList
+            A Pydantic model representing the classification project(s).
+
+        Examples
+        --------
+        classification_project = classificaction_project_component.get_by_id("123")
+        print(classification_project.results[0].id)
+        """
         return self.get_all(query={"pk": project_id})
 
     def get_by_acronym(self, project_acro: str) -> T:
@@ -393,6 +411,61 @@ class MediaComponent(TrapperAPIComponent):
         self._endpoint = "/media_classification/api/media/{cp}/"
         self._schema = Schemas.TrapperMediaList
 
+    def _download_trapper_media_list(media_list: TrapperMediaList, zip_filename_base: str = None) -> List[str]:
+        MAX_ZIP_SIZE = 2 * 1024 ** 3  # 2 GB
+        temp_dir = tempfile.gettempdir()
+
+        if zip_filename_base is None:
+            zip_filename_base = "trapper_media_export"
+
+        zip_filename_base = os.path.join(temp_dir, zip_filename_base)
+
+        zip_files = []
+        zip_index = 1
+        current_zip_size = 0
+        zip_writer = None
+
+        def start_new_zip():
+            nonlocal zip_index, zip_writer, current_zip_size
+            zip_name = f"{zip_filename_base}_{zip_index:03}.zip"
+            zip_writer = zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED)
+            zip_files.append(zip_name)
+            current_zip_size = 0
+            return zip_name
+
+        # Iniciar el primer zip
+        start_new_zip()
+
+        for media in media_list.results:
+            file_url = media.filePath
+            file_name = f"{media.mediaID}:{media.fileName}"
+            deployment_id = media.deploymentID
+            mediatype = media.fileMediatype or "image/jpeg"
+            file_ext = ".jpg" if mediatype == "image/jpeg" else ""
+            zip_internal_path = os.path.join(deployment_id, file_name + file_ext)
+
+            try:
+                response = requests.get(str(file_url))
+                response.raise_for_status()
+                file_data = response.content
+                file_size = len(file_data)
+
+                if current_zip_size + file_size > MAX_ZIP_SIZE:
+                    zip_writer.close()
+                    zip_index += 1
+                    start_new_zip()
+
+                zip_writer.writestr(zip_internal_path, file_data)
+                current_zip_size += file_size
+
+            except Exception as e:
+                print(f"❌ Error descargando {file_name}: {e}")
+
+        if zip_writer:
+            zip_writer.close()
+
+        return zip_filename_base
+
     def get_all(self, *args, **kwargs):
         raise NotImplementedError(
             "MediaComponent does not support get_all(). Use get_by_classification_project(cp_id) instead."
@@ -400,7 +473,7 @@ class MediaComponent(TrapperAPIComponent):
 
     def get_by_classification_project(self, cp_id: int, query: dict = None) -> T:
         """
-        Recupera las observaciones de un classification project específico.
+        Recupera los media de un classification project específico.
 
         :param cp_id: ID del classification project (sustituye {cp} en el endpoint).
         :param query: parámetros opcionales de búsqueda/paginación.
@@ -408,6 +481,55 @@ class MediaComponent(TrapperAPIComponent):
         endpoint = self._endpoint.format(cp=cp_id)
         res = self._client.get_all_pages(endpoint, query)
         return self._schema(**res)
+
+    def get_by_classification_project_only_animals(self, cp_id: int, query: dict = None) -> T:
+        """
+        Recupera las media de un classification project específico.
+
+        :param cp_id: ID del classification project (sustituye {cp} en el endpoint).
+        :param query: parámetros opcionales de búsqueda/paginación.
+        """
+
+        # Obtenemos los mediaid de los media que solo tengan animales
+        observations: ObservationsComponent = ObservationsComponent(self.raw)
+        o = observations.get_by_classification_project(cp_id, query)
+
+        mediaid_groups = defaultdict(list)
+        for entry in o.results:
+            mediaid_groups[entry.mediaID].append(entry)
+
+        filtered = []
+        for mediaid, entries in mediaid_groups.items():
+            if all(e.observationType == 'animal' for e in entries):
+                filtered.extend(entries)
+
+        # Obtenemos todos los medias del proyecto de clasificacion
+        endpoint = self._endpoint.format(cp=cp_id)
+        res = self._client.get_all_pages(endpoint, query)
+        medias = self._schema(**res)
+
+        # Obtener el conjunto de mediaIDs válidos del paso anterior
+        valid_media_ids = {obs.mediaID for obs in filtered}
+
+        # Filtrar las entradas multimedia que tienen esos mediaIDs
+        filtered = [entry for entry in medias.results if entry.mediaID in valid_media_ids]
+
+        pagination = medias.pagination
+        pagination.count = len(valid_media_ids)
+
+        return Schemas.TrapperMediaList(**{"pagination": pagination, "results": filtered})
+
+    def download_by_classification_project(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
+        results = self.get_by_classification_project(cp_id,query)
+        zip_files=self._download_trapper_media_list(results, zip_filename_base)
+
+        return zip_files
+
+    def download_by_classification_project_only_animals(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
+        results = self.get_by_classification_project_only_animals(cp_id,query)
+        zip_files=self._download_trapper_media_list(results, zip_filename_base)
+
+        return zip_files
 
 @attr.s
 class ObservationsComponent(TrapperAPIComponent):
@@ -517,4 +639,3 @@ class TrapperClient:
 
         if output_file:
             output.close()
-            print(f"CSV written to {output_file}")

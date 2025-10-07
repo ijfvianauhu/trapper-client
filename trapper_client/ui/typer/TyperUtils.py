@@ -6,6 +6,7 @@ import typer
 from typing import Optional, List, Union
 from pydantic import BaseModel
 from rich.table import Table
+from rich.panel import Panel
 
 class TyperUtils:
     console = Console()
@@ -107,3 +108,37 @@ class TyperUtils:
             table.add_row(*[str(row.get(col, "")) for col in columns])
 
         TyperUtils.console.print(table)
+
+        # Mostrar los campos disponibles
+        available_fields = list(rows[0].keys())
+        TyperUtils.console.print(
+            f"[dim]Available fields:[/dim] [cyan]{', '.join(available_fields)}[/cyan]"
+        )
+
+    @staticmethod
+    def print_pydantic_card(obj: BaseModel, title: str = "Pydantic Object") -> None:
+        """
+        Print a Pydantic object as a formatted card using Rich.
+
+        Args:
+            obj (BaseModel): The Pydantic object to display.
+            title (str, optional): The title of the card. Defaults to "Pydantic Object".
+        """
+        table = Table(show_header=False, box=None)
+        table.add_column("Field", style="bold cyan")
+        table.add_column("Value", style="white")
+
+        # Pydantic v2 usa model_dump, v1 usa dict()
+        data = obj.model_dump() if hasattr(obj, "model_dump") else obj.dict()
+
+        for field, value in data.items():
+            if isinstance(value, list):
+                if value:  # lista no vacía
+                    formatted = "\n".join([f"- {item}" for item in value])
+                else:
+                    formatted = "[dim]empty list[/dim]"
+                table.add_row(field, formatted)
+            else:
+                table.add_row(field, str(value))
+
+        TyperUtils.console.print(Panel(table, title=title, expand=False))

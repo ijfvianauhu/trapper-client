@@ -5,7 +5,7 @@ import typer
 from typer_config import use_yaml_config
 import logging
 import gettext, yaml
-from trapper_client.ui.typer.commands import locations, deployments, classification_projects
+from trapper_client.ui.typer.commands import locations, deployments, classification_projects, research_projects, collections, resources, media, observations
 #, research_projects, classification_projects, collections, resources, media, observations)
 from trapper_client.ui.typer.TyperUtils import TyperUtils
 from trapper_client.TrapperClient import TrapperClient
@@ -25,12 +25,12 @@ app = typer.Typer(help=_("CLI for testing TrapperClient"), rich_markup_mode='mar
 # Registrar subcomandos
 app.add_typer(locations.app, name="locations")
 app.add_typer(deployments.app, name="deployments")
-#app.add_typer(research_projects.app, name="research-projects")
+app.add_typer(research_projects.app, name="research-projects")
 app.add_typer(classification_projects.app, name="classification-projects")
-#app.add_typer(collections.app, name="collections")
-#app.add_typer(resources.app, name="resources")
-#app.add_typer(media.app, name="media")
-#app.add_typer(observations.app, name="observations")
+app.add_typer(collections.app, name="collections")
+app.add_typer(resources.app, name="resources")
+app.add_typer(media.app, name="media")
+app.add_typer(observations.app, name="observations")
 
 def get_default_config_file() -> Path:
     """Obtiene la ruta al fichero de configuración por defecto."""
