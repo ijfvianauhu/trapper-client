@@ -15,6 +15,7 @@ from trapper_client.APIClientBase import APIClientBase
 
 T = TypeVar("T")
 
+
 @attr.s
 class TrapperAPIComponent:
     """
@@ -32,7 +33,7 @@ class TrapperAPIComponent:
     _schema : Type[T]
         The Pydantic schema class for response validation
     """
-    
+
     _client: APIClientBase = attr.ib(repr=False)
     _endpoint: str = attr.ib(init=False)
     _schema: Type[T] = attr.ib(init=False)
@@ -70,6 +71,7 @@ class TrapperAPIComponent:
 
         return parsed
 
+
 #
 # DeploymentsComponent
 #
@@ -82,6 +84,7 @@ class LocationsComponent(TrapperAPIComponent):
     This component provides methods to retrieve location data, either individually
     or in bulk, and handles the mapping of API responses to Pydantic models.
     """
+
     def __attrs_post_init__(self):
         """
         Initialize the Locations component.
@@ -170,6 +173,8 @@ class LocationsComponent(TrapperAPIComponent):
         return self.get_all(
             filter_fn=lambda dep: dep.researchProject == research_project
         )
+
+
 #
 # DeploymentsComponent
 #
@@ -264,6 +269,7 @@ class DeploymentsComponent(TrapperAPIComponent):
             filter_fn=lambda dep: dep.locationID == location_id
         )
 
+
 #
 # ClassificationProjectsComponent
 #
@@ -339,7 +345,8 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
         pagination = cps.pagination
         pagination.count = len(result)
 
-        return Schemas.TrapperClassificationProjectList(**{"pagination": pagination, "results":result})
+        return Schemas.TrapperClassificationProjectList(**{"pagination": pagination, "results": result})
+
 
 #
 # ResearchProjectsComponent
@@ -360,6 +367,7 @@ class ResearchProjectsComponent(TrapperAPIComponent):
     Schemas.TrapperClassificationProjectList
         Classification projects associated with the specified collection.
     """
+
     def __attrs_post_init__(self):
         """
         Initialize the component with research projects endpoint and schema.
@@ -384,19 +392,20 @@ class ResearchProjectsComponent(TrapperAPIComponent):
         return self.get_all(query={"pk": project_id})
 
     def get_by_acronym(self, project_acro: str) -> T:
-            """
+        """
         Retrieve research projects by acronym.
-
+    
         Parameters
         ----------
         project_acro : str
             The acronym or name to filter research projects.
-
+    
         Returns
         -------
         T
             Filtered research projects whose name matching the acronym.
         """
+
         return self.get_all(
             filter_fn=lambda dep: dep.name == project_acro
         )
@@ -446,7 +455,7 @@ class ResearchProjectsComponent(TrapperAPIComponent):
             filter_fn=lambda dep: dep.owner == owner
         )
 
-    def get_my(self, username = "me") -> T:
+    def get_my(self, username="me") -> T:
         """
         Retrieve research projects associated with the current user.
 
@@ -477,6 +486,7 @@ class ResearchProjectsComponent(TrapperAPIComponent):
             )
         )
 
+
 #
 # Collection
 #
@@ -485,7 +495,7 @@ class ResearchProjectsComponent(TrapperAPIComponent):
 class CollectionsComponent(TrapperAPIComponent):
     """
     Component for interacting with Collections endpoint.
-    
+
     Provides methods to retrieve and filter collections from the Trapper API.
     """
 
@@ -546,7 +556,7 @@ class CollectionsComponent(TrapperAPIComponent):
             Collections associated with the specified research project.
         """
         endpoint = f"/research/api/project/{project_id}/collections"
-        res =  self._client.get_all_pages(endpoint)
+        res = self._client.get_all_pages(endpoint)
         return self._schema(**res)
 
     def get_by_classification_project(self, project_id: int) -> T:
@@ -567,13 +577,15 @@ class CollectionsComponent(TrapperAPIComponent):
         res = self._client.get_all_pages(endpoint)
         return self._schema(**res)
 
+
 @attr.s
 class ResourcesComponent(TrapperAPIComponent):
     """
     Component for interacting with Resources endpoint.
-    
+
     Provides methods to retrieve resources associated with collections or locations.
     """
+
     def __attrs_post_init__(self):
         """
         Initialize the component with resources endpoint and schema.
@@ -627,11 +639,12 @@ class ResourcesComponent(TrapperAPIComponent):
 
         return self._schema(**res)
 
+
 @attr.s
 class MediaComponent(TrapperAPIComponent):
     """
     Component for interacting with Media endpoint.
-    
+
     Provides methods to retrieve and download media files from classification projects.
     """
 
@@ -642,7 +655,8 @@ class MediaComponent(TrapperAPIComponent):
         self._endpoint = "/media_classification/api/media/{cp}/"
         self._schema = Schemas.TrapperMediaList
 
-    def _download_trapper_media_list(self,media_list: Schemas.TrapperMediaList, zip_filename_base: str = None) -> List[str]:
+    def _download_trapper_media_list(self, media_list: Schemas.TrapperMediaList, zip_filename_base: str = None) -> List[
+        str]:
         """
         Download media files and organize them into ZIP files.
 
@@ -658,7 +672,7 @@ class MediaComponent(TrapperAPIComponent):
         List[str]
             List of paths to the created ZIP files.
         """
-        
+
         MAX_ZIP_SIZE = 2 * 1024 ** 3  # 2 GB
         import tempfile, requests, zipfile
         temp_dir = Path(tempfile.mkdtemp(prefix="trapper_client_"))
@@ -735,7 +749,7 @@ class MediaComponent(TrapperAPIComponent):
         Schemas.TrapperMediaList
             Media items associated with the specified classification project.
         """
-        
+
         endpoint = self._endpoint.format(cp=cp_id)
         res = self._client.get_all_pages(endpoint, query)
         return self._schema(**res)
@@ -804,11 +818,12 @@ class MediaComponent(TrapperAPIComponent):
         List[str]
             Paths to the created ZIP files.
         """
-        results = self.get_by_classification_project(cp_id,query)
-        zip_files=self._download_trapper_media_list(results, zip_filename_base)
+        results = self.get_by_classification_project(cp_id, query)
+        zip_files = self._download_trapper_media_list(results, zip_filename_base)
         return zip_files
 
-    def download_by_classification_project_only_animals(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
+    def download_by_classification_project_only_animals(self, cp_id: int, query: dict = None,
+                                                        zip_filename_base: str = None):
         """
         Download media containing only animal observations from a classification project.
 
@@ -826,19 +841,20 @@ class MediaComponent(TrapperAPIComponent):
         List[str]
             Paths to the created ZIP files.
         """
-       
-        results = self.get_by_classification_project_only_animals(cp_id,query)
-        zip_files=self._download_trapper_media_list(results, zip_filename_base)
+
+        results = self.get_by_classification_project_only_animals(cp_id, query)
+        zip_files = self._download_trapper_media_list(results, zip_filename_base)
         return zip_files
+
 
 @attr.s
 class ObservationsComponent(TrapperAPIComponent):
     """
     Component for interacting with Observations endpoint.
-    
+
     Provides methods to retrieve observation data from classification projects.
     """
-    
+
     def __attrs_post_init__(self):
         """
         Initialize the component with observations endpoint and schema.
@@ -870,6 +886,8 @@ class ObservationsComponent(TrapperAPIComponent):
         endpoint = self._endpoint.format(cp=cp_id)
         res = self._client.get_all_pages(endpoint, query)
         return self._schema(**res)
+
+
 #
 # Main client class
 #
@@ -879,6 +897,7 @@ def parse_url(url: str):
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"URL inválida: {url}")
     return url
+
 
 @attr.s(auto_attribs=True)
 class TrapperClient:
@@ -995,7 +1014,7 @@ class TrapperClient:
         ValueError
             If the provided object doesn't have 'results' and 'pagination' attributes.
         """
-                               
+
         if not hasattr(data_list, "results") or not hasattr(data_list, "pagination"):
             raise ValueError("The provided object must have 'results' and 'pagination' attributes.")
         if not hasattr(data_list, "results") or not hasattr(data_list, "pagination"):
