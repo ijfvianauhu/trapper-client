@@ -37,7 +37,7 @@ def _test_trapper_client_resources_get_all(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def _test_trapper_client_resources_get_by_collection(trapper_client):
+def test_trapper_client_resources_get_by_collection(trapper_client):
     id_test = "47"
     try:
         resources = trapper_client.resources.get_by_collection(id_test)

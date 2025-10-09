@@ -44,6 +44,19 @@ def test_trapper_client_media_get_by_classification_project(trapper_client):
         logging.debug(f"Exception occurred: {e}")
         assert False, f"Exception occurred: {e}"
 
+def test_trapper_client_media_get_by_classification_project_and_collection(trapper_client):
+    id_test = "33"
+    id_collection = "47"
+    try:
+        media = trapper_client.media.get_by_classification_project_and_collection(id_test, id_collection)
+        #_validate_media(media)
+        logging.debug(f"Found {len(media.results)} active media in classification project {id_test} that allow to {id_collection} collection.")
+    except Exception as e:
+        logging.debug(f"Exception occurred: {e}")
+        assert False, f"Exception occurred: {e}"
+
+
+
 def _test_trapper_client_media_download_by_classification_project(trapper_client):
     id_test = "33"
     try:

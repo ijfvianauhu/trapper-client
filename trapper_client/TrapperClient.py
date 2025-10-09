@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import TypeVar, Type, Dict, Any, Callable, List
+from typing import TypeVar, Type, Dict, Any, Callable, List, Set
 from urllib.parse import urlparse
 import attr, os
 
@@ -14,7 +14,6 @@ from trapper_client import Schemas
 from trapper_client.APIClientBase import APIClientBase
 
 T = TypeVar("T")
-
 
 @attr.s
 class TrapperAPIComponent:
@@ -336,7 +335,6 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
         cps = self.get_all()
         result = []
         for cp in cps.results:
-            logging.debug(f"cp {cp}")
             collections = CollectionsComponent(self._client).get_by_classification_project(int(cp.pk))
             found = any(c.collection_pk == collection_id for c in collections.results)
             if found:
@@ -754,6 +752,38 @@ class MediaComponent(TrapperAPIComponent):
         res = self._client.get_all_pages(endpoint, query)
         return self._schema(**res)
 
+    def get_by_classification_project_and_collection(self, cp_id: int, c_id:int, query: dict = None) -> T:
+        """
+        Retrieve media from a specific classification project and collection.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project (replaces {cp} in the endpoint).
+        c_id : int
+            The ID of the collection to filter media by.
+        query : dict, optional
+            Optional search/pagination parameters.
+
+        Returns
+        -------
+        Schemas.TrapperMediaList
+            Media items associated with the specified classification project and collection.
+        """
+        resources: ResourcesComponent = ResourcesComponent(self._client)
+
+        collection_resources = resources.get_by_collection(c_id)
+        media_ids : Set[str] = { resource.pk for resource in collection_resources.results }
+
+        endpoint = self._endpoint.format(cp=cp_id)
+        res = Schemas.TrapperMediaList(**self._client.get_all_pages(endpoint, query))
+        filtered = [entry for entry in res.results if entry.mediaID in media_ids]
+        res.pagination.count = len(filtered)
+        res.results = filtered
+
+        return res
+
+
     def get_by_classification_project_only_animals(self, cp_id: int, query: dict = None) -> T:
         """
         Retrieve media containing only animal observations from a classification project.
@@ -819,6 +849,32 @@ class MediaComponent(TrapperAPIComponent):
             Paths to the created ZIP files.
         """
         results = self.get_by_classification_project(cp_id, query)
+        zip_files = self._download_trapper_media_list(results, zip_filename_base)
+        return zip_files
+
+    def download_by_classification_project_and_collection(self, cp_id: int, c_id:int, query: dict = None, zip_filename_base: str = None):
+        """
+        Download all media from a specific classification project and collection.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project.
+        c_id : int
+            The ID of the collection.
+        query : dict, optional
+            Optional search/pagination parameters.
+        zip_filename_base : str, optional
+            Base name for the ZIP files.
+
+        Returns
+        -------
+        List[str]
+            Paths to the created ZIP files.
+        """
+
+
+        results = self.get_by_classification_project_and_collection(cp_id, c_id, query)
         zip_files = self._download_trapper_media_list(results, zip_filename_base)
         return zip_files
 
