@@ -516,7 +516,7 @@ class CollectionsComponent(TrapperAPIComponent):
         Returns
         -------
         T
-            The collection with the specified ID.
+            The collection with the specified vaID.
         """
         return self.get_all(query={"pk": project_id})
 
@@ -943,6 +943,37 @@ class ObservationsComponent(TrapperAPIComponent):
         res = self._client.get_all_pages(endpoint, query)
         return self._schema(**res)
 
+    def get_by_classification_project_and_collection(self, cp_id: int, c_id:int, query: dict = None) -> T:
+        """
+        Retrieve observations from a specific classification project and collection.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project (replaces {cp} in the endpoint).
+        c_id : int
+            The ID of the collection to filter observations by.
+        query : dict, optional
+            Optional search/pagination parameters.
+
+        Returns
+        -------
+        Schemas.TrapperObservationList
+            Observations from the specified classification project and collection.
+        """
+
+        resources: ResourcesComponent = ResourcesComponent(self._client)
+
+        collection_resources = resources.get_by_collection(c_id)
+        media_ids : Set[str] = { resource.pk for resource in collection_resources.results }
+
+        endpoint = self._endpoint.format(cp=cp_id)
+        res = Schemas.TrapperObservationList(**self._client.get_all_pages(endpoint, query))
+        filtered = [entry for entry in res.results if entry.mediaID in media_ids]
+        res.pagination.count = len(filtered)
+        res.results = filtered
+
+        return res
 
 #
 # Main client class
