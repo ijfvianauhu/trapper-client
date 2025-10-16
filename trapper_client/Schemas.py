@@ -286,7 +286,7 @@ class TrapperObservation(BaseModel):
     classifiedBy: Optional[str] = None
     classificationTimestamp: Optional[datetime] = None
     classificationProbability: Optional[float] = None
-    observationTags: Optional[List[str]] = None
+    observationTags: Optional[str] = None
     observationComments: Optional[str] = None
     id: str = Field(..., alias="_id")
 
