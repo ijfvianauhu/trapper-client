@@ -5,6 +5,14 @@ description = "Python wrapper for Trapper API"
 authors = ["ijfviana <ijfviana@gmail.com>"]
 readme = "README.md"
 
+[tool.poetry.scripts]
+trapper-client = "trapper_client.ui.typer.main:app"
+#build-docs = "utils.docs:build_docs"
+build-docs = "utils.sphinx:build_docs"
+extract-pot = "utils.i18n:extract_translations"
+update-po = "utils.i18n:init_translation"
+compile-mo = "utils.i18n:compile_translations"
+
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
 attr = "^0.3.2"
@@ -12,11 +20,19 @@ pydantic = "^2.11.10"
 python-dotenv = "^1.1.1"
 requests = "^2.32.5"
 attrs = "^25.3.0"
-pytest = "^8.4.2"
 typer = "^0.19.2"
 typer-config = "^1.4.2"
 pyyaml = "^6.0.3"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+pdoc = "^15.0.4"
+babel = "^2.17.0"
+python-gettext = "^5.0"
+polib = "^1.2.0"
+sphinx = "^8.2.3"
+sphinx-autodoc-typehints = "^3.5.2"
+recommonmark = "^0.7.1"
 
 [build-system]
 requires = ["poetry-core"]
