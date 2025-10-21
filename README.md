@@ -19,6 +19,17 @@
 - **Observations**: Access processed wildlife observations and related data
 - **Classification Media**: Manage and obtain media associated with classification projects
 
+## 📋 Requirements
+
+* Python 3.12 or higher  
+* Poetry (for dependency management and packaging)  
+* Pydantic (data validation and models) 
+* PyYAML (configuration management)  
+* Python-dotenv (environment variable support)
+* Docker (optional, for running in a container)
+* Typer (optional, CLI interface)  
+* Access to a Trapper server instance
+
 ## 🧭 Overview
 
 **Trapper-Zooniverse** is a Python wrapper for the **Trapper API**, designed to simplify access to data related to wildlife 
