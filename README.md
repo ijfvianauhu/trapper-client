@@ -19,8 +19,6 @@
 - **Observations**: Access processed wildlife observations and related data
 - **Classification Media**: Manage and obtain media associated with classification projects
 
-## 🫎 Overview
-
 ## 🧭 Overview
 
 **Trapper-Zooniverse** is a Python wrapper for the **Trapper API**, designed to simplify access to data related to wildlife 
