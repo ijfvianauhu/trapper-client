@@ -20,8 +20,6 @@ pydantic = "^2.11.10"
 python-dotenv = "^1.1.1"
 requests = "^2.32.5"
 attrs = "^25.3.0"
-typer = "^0.19.2"
-typer-config = "^1.4.2"
 pyyaml = "^6.0.3"
 
 [tool.poetry.group.dev.dependencies]
@@ -37,3 +35,11 @@ recommonmark = "^0.7.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+# Dependencias opcionales
+typer = { version = "^0.19.2", optional = true }
+typer-config = { version = "^1.4.2", optional = true }
+
+[tool.poetry.extras]
+cli = ["typer", "typer-config"]
+
