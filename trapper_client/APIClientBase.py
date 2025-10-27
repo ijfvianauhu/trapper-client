@@ -2,7 +2,7 @@ from json import JSONDecodeError
 import logging
 import csv
 import io
-import time
+import zipfile
 from typing import Dict
 
 import requests
@@ -93,7 +93,21 @@ class APIClientBase:
                 return r
             elif "text/csv" in content_type or r.text.strip().startswith(
                     tuple("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")):
-                csv_text = r.text
+
+                # Detectar y descomprimir si es necesario
+                if r.content[:4] == b'PK\x03\x04' or "zip" in content_type:
+                    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+                        csv_name = next((n for n in zf.namelist() if n.endswith(".csv")), None)
+                        csv_text = zf.read(csv_name).decode("utf-8") if csv_name else ""
+                elif r.content[:2] == b'\x1f\x8b' or "gzip" in content_type:
+                    import gzip
+                    csv_text = gzip.decompress(r.content).decode("utf-8")
+                elif r.content[:2] == b'BZ' or "bzip2" in content_type:
+                    import bz2
+                    csv_text = bz2.decompress(r.content).decode("utf-8")
+                else:
+                    csv_text = r.text
+
                 reader = csv.DictReader(io.StringIO(csv_text))
                 rows = list(reader)
                 total = len(rows)
