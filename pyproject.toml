@@ -40,6 +40,6 @@ build-backend = "poetry.core.masonry.api"
 typer = { version = "^0.19.2", optional = true }
 typer-config = { version = "^1.4.2", optional = true }
 
-[tool.poetry.extras]
-cli = ["typer", "typer-config"]
+[project.optional-dependencies]
+typer = ["typer>=0.20.0"]
 
