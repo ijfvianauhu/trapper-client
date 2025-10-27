@@ -37,9 +37,9 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 # Dependencias opcionales
-typer = { version = "^0.19.2", optional = true }
-typer-config = { version = "^1.4.2", optional = true }
+#typer = { version = "^0.19.2", optional = true }
+#typer-config = { version = "^1.4.2", optional = true }
 
-[project.optional-dependencies]
-typer = ["typer>=0.20.0"]
+#[project.optional-dependencies]
+#typer = ["typer>=0.20.0"]
 
