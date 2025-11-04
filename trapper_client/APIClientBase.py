@@ -13,23 +13,73 @@ from trapper_client import err
 
 @attr.s
 class APIClientBase:
+    """
+    Base client for interacting with the Trapper API.
+
+    This class provides common functionality for authenticating, sending HTTP requests,
+    handling pagination, and processing JSON or CSV responses.
+
+    Attributes
+    ----------
+    access_token : str
+        Authentication token used for API requests (if available).
+    user_name : str
+        Username for basic authentication.
+    user_password : str
+        Password for basic authentication.
+    verify_ssl : bool, optional
+        Whether to verify SSL certificates. Default is True.
+    base_url : str, optional
+        Base URL of the Trapper API. Default is ``"https://wildintel-trap.uhu.es"``.
+    """
     access_token: str = attr.ib(repr=False)
     user_name: str = attr.ib(repr=False)
     user_password: str = attr.ib(repr=False)
     verify_ssl: bool = attr.ib(repr=False, default=True)
     base_url: str = attr.ib(repr=False, default="https://wildintel-trap.uhu.es")
 
-    name = "zoom_api_client"
+    name = "trapper_api_client"
     user_id: str = "me"
 
     def _paginate(self, items, page: int, per_page: int = 10):
-        """Devuelve los registros de la página indicada (1-indexed)."""
+        """
+        Return a specific page of results from a list.
+
+        Parameters
+        ----------
+        items : list
+            List of items to paginate.
+        page : int
+            Page number to return (1-indexed).
+        per_page : int, optional
+            Number of items per page. Default is 10.
+
+        Returns
+        -------
+        list
+            Items corresponding to the requested page.
+        """
+
         start = (page - 1) * per_page
         end = start + per_page
         return items[start:end]
 
     def _auth(self):
-        """Devuelve headers o auth tuple según el modo de autenticación."""
+        """
+        Return authentication headers or credentials tuple depending on configuration.
+
+        Returns
+        -------
+        tuple
+            A tuple ``(headers, auth)`` where:
+            - ``headers`` is a dictionary with authorization headers (if token-based auth).
+            - ``auth`` is a tuple ``(username, password)`` for basic authentication.
+
+        Raises
+        ------
+        ValueError
+            If neither token nor username/password are configured.
+        """
         if self.access_token:
             return {"Authorization": f"Token {self.access_token}"}, None
         elif self.user_name and self.user_password:
@@ -45,6 +95,22 @@ class APIClientBase:
         body: Dict = None,
         raise_on_error=True,
     ) -> requests.Response:
+        """
+        Return authentication headers or credentials tuple depending on configuration.
+
+        Returns
+        -------
+        tuple
+            A tuple ``(headers, auth)`` where:
+            - ``headers`` is a dictionary with authorization headers (if token-based auth).
+            - ``auth`` is a tuple ``(username, password)`` for basic authentication.
+
+        Raises
+        ------
+        ValueError
+            If neither token nor username/password are configured.
+        """
+
         allowed_methods = "GET POST PATCH DELETE PUT".split()
         if method not in allowed_methods:
             raise ValueError(
@@ -179,7 +245,7 @@ class APIClientBase:
 
         results = {k: (v[:] if isinstance(v, list) else v) for k, v in res.items()}
 
-        # Siguientes páginas
+        # Siguientes páginaszoom
         while page < pages:
             page += 1
             query["page"] = page
@@ -202,6 +268,46 @@ class APIClientBase:
 
         results["pagination"] = pagination
         return results
+
+    def get_page(
+            self,
+            endpoint: str,
+            query: Dict = None,
+            raise_on_error: bool = True,
+            page: int = 1,
+            per_page: int = None,
+    ) -> Dict:
+        """
+        Obtiene una página específica del endpoint indicado.
+        Si el endpoint no soporta paginación (por ejemplo CSV o lista simple),
+        simula la paginación localmente.
+        """
+        query = {} if query is None else query.copy()
+        query["page"] = page
+        if per_page:
+            query["page_size"] = per_page
+
+        r = self.get(endpoint, query=query, raise_on_error=raise_on_error)
+        data = r.json()
+
+        if "pagination" in data and "results" in data:
+            return data
+
+        results = data.get("results", data if isinstance(data, list) else [data])
+        total = len(results)
+        per_page = per_page or total
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        paged_results = self._paginate(results, page=page, per_page=per_page)
+
+        return {
+            "pagination": {
+                "page": page,
+                "page_size": per_page,
+                "pages": total_pages,
+                "count": total,
+            },
+            "results": paged_results,
+        }
 
     def post(
         self,

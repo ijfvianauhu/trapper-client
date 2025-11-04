@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from pydantic import BaseModel, Field, ConfigDict, HttpUrl, field_validator
 from datetime import datetime
 from typing_extensions import Literal
@@ -184,59 +184,61 @@ class TrapperCollectionList(BaseModel):
 
 # Resources
 #
-
+"""
 class TrapperResourceCollection(BaseModel):
     pk: int
     name: str
-    owner: Optional[str] = None
-    owner_profile: Optional[str] = None
+    owner: str
+    owner_profile: str
     resource_type: str
     date_recorded: datetime
-    observation_type: Optional[List[str]] = None
-    species: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
+    observation_type: List[str]
+    species: List[str]
+    tags: List[str]
     url: str
     url_original: str
     mime: str
+    preview_url : str
     thumbnail_url: str
-    update_data: Optional[str] = None
+    update_data: str = None
     detail_data: str
-    delete_data: Optional[str] = None
+    delete_data: str = None
     date_recorded_correct: bool
+"""
 
 class TrapperResourceLocation(BaseModel):
     pk: int
-    name: str
     resource_type: str
     deployment: Optional[str] = None
     date_recorded: datetime
     tags: List[str]
+    preview_url : str
     thumbnail_url: str
     detail_data: str
 
 class TrapperResource(BaseModel):
     pk: int
     name: str
-    owner: Optional[str] = None
-    owner_profile: Optional[str] = None
+    owner: str
+    owner_profile: str
     resource_type: str
     date_recorded: datetime
-    deployment: Optional[str] = None
-    observation_type: Optional[List[str]] = None
-    species: Optional[List[str]] = None
+    observation_type: List[str]
+    species: List[str]
     tags: List[str]
-    url: Optional[str] = None
-    url_original: str = None
-    mime: Optional[str] = None
+    url: str
+    url_original: str
+    mime: str
+    preview_url : str
     thumbnail_url: str
-    update_data: Optional[str] = None
-    detail_data: Optional[str] = None
-    delete_data: Optional[str] = None
-    date_recorded_correct: Optional[bool] = None
+    update_data: str
+    detail_data: str
+    delete_data: str
+    date_recorded_correct: bool
 
 class TrapperResourceList(BaseModel):
     pagination: Pagination
-    results: List[Union[TrapperResourceCollection, TrapperResourceLocation]]
+    results: List[Union[TrapperResource, TrapperResourceLocation]]
 
 ###
 ### Media
@@ -317,3 +319,26 @@ class TrapperObservation(BaseModel):
 class TrapperObservationList(BaseModel):
     pagination: Pagination
     results: List[TrapperObservation]
+
+#
+# Classificator
+#
+
+class TrapperClassificator(BaseModel):
+    pk: int
+    name: str
+    owner: str
+    owner_profile: str
+    updated_date: str  # ISO 8601 string (puedes cambiar a datetime si quieres)
+    predefined_attrs: Dict[str, dict]
+    static_attrs_order: Optional[str] = None
+    custom_attrs: Dict[str, dict]
+    dynamic_attrs_order: Optional[str] = None
+    description: Optional[str] = None
+    update_data: Optional[str] = None
+    detail_data: Optional[str] = None
+    delete_data: Optional[str] = None
+
+class TrapperClassificatorList(BaseModel):
+    pagination: Pagination
+    results: List[TrapperClassificator]

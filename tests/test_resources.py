@@ -2,7 +2,7 @@ import logging
 import pytest
 from dotenv import load_dotenv
 from trapper_client.TrapperClient import TrapperClient
-from trapper_client.Schemas import TrapperResource, TrapperResourceCollection, TrapperResourceLocation
+from trapper_client.Schemas import TrapperResource, TrapperResourceLocation
 
 #
 #  pytest -o log_cli=true --log-cli-level=DEBUG
@@ -19,7 +19,8 @@ def _validate_resources(resources, expected_type=TrapperResource):
     """Common validation for deployments responses."""
     assert hasattr(resources, "results")
     assert hasattr(resources, "pagination")
-
+    logging.debug(resources.results[0])
+    logging.debug(type(resources.results[0]))
     if resources.results:  # only if results is not empty
         assert isinstance(resources.results[0], expected_type)
 
@@ -27,21 +28,20 @@ def _validate_resources(resources, expected_type=TrapperResource):
 # Deployments
 #
 
-def _test_trapper_client_resources_get_all(trapper_client):
+def test_trapper_client_resources_get_all(trapper_client):
     try:
-        deployments = trapper_client.resources.get_all()
-        assert False, "Not implemented yet"
-    except NotImplementedError as e:
-        assert True, f"Exception occurred: {e}"
+        resources = trapper_client.resources.get_all()
+        _validate_resources(resources, expected_type=TrapperResource)
+        logging.debug(f"Found {len(resources.results)} active resources.")
     except Exception as e:
-        print(f"Error fetching research project: {e}")
+        print(f"Error fetching resources: {e}")
         assert False, f"Exception occurred: {e}"
 
 def test_trapper_client_resources_get_by_collection(trapper_client):
     id_test = "47"
     try:
         resources = trapper_client.resources.get_by_collection(id_test)
-        _validate_resources(resources, expected_type=TrapperResourceCollection)
+        _validate_resources(resources, expected_type=TrapperResource)
         logging.debug(f"Found {len(resources.results)} active resources in collection {id_test}.")
     except Exception as e:
         logging.debug(f"Error fetching resources: {e}")
