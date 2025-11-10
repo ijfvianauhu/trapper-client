@@ -1,7 +1,8 @@
+Welcome to trapper-client's documentation!
+==========================================
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   trapper_client
-
-   modules
+   api/modules
