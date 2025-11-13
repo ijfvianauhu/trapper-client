@@ -548,7 +548,7 @@ class TrapperObservationResultsTrapper(TrapperObservationResults):
 
 class TrapperObservationResultsCTDP(TrapperObservationResults):
     bboxX: Optional[float] = None
-    bboxY: Optional[List[float]] = None
+    bboxY: Optional[float] = None
     bboxWidth: Optional[float] = None
     bboxHeight: Optional[float] = None
 
