@@ -72,49 +72,6 @@ class ClassificationProjectsComponent(TrapperAPIComponent):
         self._endpoint = "/media_classification/api/projects"
         self._schema = Schemas.TrapperClassificationProjectList
 
-    def __init_subclass__(cls, **kwargs):
-        """
-        Dynamically generate getter methods for each explicit field when the subclass is created.
-        """
-        super().__init_subclass__(**kwargs)
-
-        for field in cls.explicit_fields:
-
-            def make_getter(f, all_results=False):
-                prefix = "get_all_by_" if all_results else "get_by_"
-                method_name = f"{prefix}{f}"
-
-                doc = f"""
-Auto-generated method for querying Classification Projects by field ``{f}``.
-
-:param value: Value to filter by for field ``{f}``. Can be a single value or a list (lists will be joined by commas).
-:type value: Any
-:param query: Additional query parameters to include.
-:type query: dict, optional
-:param filter_fn: Optional function to filter results locally after fetching.
-:type filter_fn: callable, optional
-:param endpoint: Optional endpoint override.
-:type endpoint: str, optional
-
-:returns: A Pydantic model containing the filtered results.
-:rtype: T
-"""
-
-                def getter(self, value, query=None, filter_fn=None, endpoint=None):
-                    query = query or {}
-                    if isinstance(value, list):
-                        value = ",".join(map(str, value))
-                    query[f] = value
-                    if all_results:
-                        return self.get_all(query, filter_fn=filter_fn, endpoint=endpoint)
-                    return self.get(query, filter_fn=filter_fn, endpoint=endpoint)
-
-                getter.__name__ = method_name
-                getter.__doc__ = doc
-                return getter
-
-            setattr(cls, f"get_by_{field}", make_getter(field, all_results=False))
-            setattr(cls, f"get_all_by_{field}", make_getter(field, all_results=True))
 
     def get_by_id(self, pk: int, query: dict = None) -> T:
         """

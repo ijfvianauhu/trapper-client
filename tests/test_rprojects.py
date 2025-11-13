@@ -59,6 +59,7 @@ def test_trapper_client_research_project_by_owner(trapper_client):
 
     try:
         deployments = trapper_client.research_projects.get_by_owner(owner_test)
+        logging.info(deployments)
         validate_objects(deployments,TrapperResearchProject)
         assert all(d.owner==owner_test for d in deployments.results)
         logging.debug(f"Found {len(deployments.results)} active research project.")

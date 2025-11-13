@@ -1,9 +1,17 @@
 import csv
 import io
+import re
 import zipfile
+from inspect import Signature, Parameter
 from typing import Type, Dict, Any, Callable, TypeVar
+
+from pydantic import BaseModel
+
 from trapper_client.APIClientBase import APIClientBase
 import attr
+import logging
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -57,8 +65,8 @@ class TrapperAPIComponent:
         #    # Es una clase que redefine este método -> no generamos métodos automáticos
         #    return
         # Evitar generar métodos automáticos solo si la clase es MediaComponent
-        if cls.__name__ == "MediaComponent":
-            return
+        #if cls.__name__ == "MediaComponent":
+        #    return
 
         # Combina explicit_fields de todas las clases padre con los nuevos
         base_fields = []
@@ -70,51 +78,75 @@ class TrapperAPIComponent:
         # Genera métodos get_by_<field> y get_all_by_<field>
         for field in cls.explicit_fields:
 
-            def make_getter(f, all_results=False):
+            def make_getter(f, all_results=False, extra_params=None):
+                extra_params = extra_params or []
                 prefix = "get_all_by_" if all_results else "get_by_"
                 method_name = f"{prefix}{f}"
 
-                def getter(self, value, query=None, filter_fn=None, endpoint=None):
-                    """
-                    Auto-generated method for querying by field '{f}'.
+                # parámetros fijos
+                params = [
+                    Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),
+                    Parameter("value", Parameter.POSITIONAL_OR_KEYWORD),
+                    Parameter("query", Parameter.POSITIONAL_OR_KEYWORD, default=None),
+                    Parameter("filter_fn", Parameter.POSITIONAL_OR_KEYWORD, default=None),
+                    Parameter("endpoint", Parameter.POSITIONAL_OR_KEYWORD, default=None),
+                ]
 
-                    Parameters
-                    ----------
-                    value : Any
-                        Value to filter by for field '{f}'.
-                        If a list is provided, it will be joined by commas.
-                    query : dict, optional
-                        Additional query parameters.
-                    filter_fn : callable, optional
-                        Local filter function applied after fetching results.
-                    endpoint : str, optional
-                        Optional endpoint override.
+                # agregar parámetros dinámicos
+                for p in extra_params:
+                    params.insert(1, Parameter(p, Parameter.POSITIONAL_OR_KEYWORD))
 
-                    Returns
-                    -------
-                    T
-                        Filtered results from the API.
-                    """
-                    query = query or {}
+                sig = Signature(params)
+
+                def getter(*args, **kwargs):
+                    bound = sig.bind(*args, **kwargs)
+                    bound.apply_defaults()
+                    self = bound.arguments['self']
+                    value = bound.arguments['value']
+                    filter_fn = bound.arguments['filter_fn']
+                    endpoint = bound.arguments['endpoint']
+
+                    query_in = bound.arguments.get('query') or {}
+                    if not isinstance(query_in, dict):
+                        query_in = {}
+                    query_copy = query_in.copy()
+                    default_query = getattr(self, "_default_query", {}) or {}
+                    combined_query = {**default_query, **query_copy}
+
+                    combined_query[f] = value
+
+                    # llenar query con el valor del campo
                     if isinstance(value, list):
                         value = ",".join(map(str, value))
-                    query[f] = value
+                    combined_query[f] = value
+
+                    actual_endpoint = endpoint or getattr(self, "_endpoint", None)
+                    if actual_endpoint:
+                        for var in extra_params:
+                            val = bound.arguments.get(var)
+                            if val is not None:
+                                actual_endpoint = actual_endpoint.replace(f"{{{var}}}", str(val))
+
                     if all_results:
-                        return self.get_all(query, filter_fn=filter_fn, endpoint=endpoint)
-                    return self.get(query, filter_fn=filter_fn, endpoint=endpoint)
+                        return self.get_all(query=combined_query, filter_fn=filter_fn, endpoint=actual_endpoint)
+                    return self.get(query=combined_query, filter_fn=filter_fn, endpoint=actual_endpoint)
 
                 getter.__name__ = method_name
-                getter.__doc__ = getter.__doc__.format(f=f)
+                getter.__doc__ = f"Auto-generated getter for field '{f}'."
+                getter.__signature__ = sig
                 return getter
 
-            setattr(cls, f"get_by_{field}", make_getter(field, all_results=False))
-            setattr(cls, f"get_all_by_{field}", make_getter(field, all_results=True))
+            endpoint = getattr(cls, "_endpoint", "")
+            extra_vars = re.findall(r"{(\w+)}", endpoint)
+            setattr(cls, f"get_by_{field}", make_getter(field, all_results=False, extra_params=extra_vars))
+            setattr(cls, f"get_all_by_{field}", make_getter(field, all_results=True, extra_params=extra_vars))
 
     def get_all(
         self,
         query: Dict[str, Any] = None,
         filter_fn: Callable[[T], bool] = None,
         endpoint: str = None,
+        schema: type[BaseModel]=None
     ) -> T:
         """
         Retrieve all results (all pages) from the endpoint.
@@ -134,8 +166,11 @@ class TrapperAPIComponent:
             Pydantic model containing all retrieved results.
         """
         actual_endpoint = endpoint or self._endpoint
+        actual_schema = schema or self._schema
+        logger.debug(f"TrapperAPIComponent.get_all called with endpoint: {actual_endpoint} and query: {query}")
         res = self._client.get_all_pages(actual_endpoint, query)
-        parsed = self._schema(**res)
+        logger.debug(f"Validating components using {actual_schema} schema")
+        parsed = actual_schema(**res)
         if filter_fn:
             parsed.results = [r for r in parsed.results if filter_fn(r)]
         return parsed
@@ -145,6 +180,7 @@ class TrapperAPIComponent:
         query: Dict[str, Any] = None,
         filter_fn: Callable[[T], bool] = None,
         endpoint: str = None,
+        schema: type[BaseModel]=None
     ) -> T:
         """
         Retrieve results from the endpoint (single page).
@@ -164,8 +200,9 @@ class TrapperAPIComponent:
             Pydantic model containing retrieved results.
         """
         actual_endpoint = endpoint or self._endpoint
+        actual_schema = schema or self._schema
         res = self._client.get(actual_endpoint, query)
-        parsed = self._schema(**res)
+        parsed = actual_schema(**res)
         if filter_fn:
             parsed.results = [r for r in parsed.results if filter_fn(r)]
         return parsed
@@ -221,6 +258,7 @@ class TrapperAPIComponent:
             Filtered results.
         """
         return self.get(filters, filter_fn=filter_fn, endpoint=endpoint)
+
 
     def export(self,query: Dict[str, Any] = None, endpoint: str = None) -> None | csv.DictReader :
         a= self._client.make_request(

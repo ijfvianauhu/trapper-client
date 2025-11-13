@@ -7,9 +7,12 @@ from trapper_client import Schemas
 from trapper_client.TrapperAPIComponent import TrapperAPIComponent, T
 import attr
 
+from trapper_client.components.CollectionsComponent import CollectionsComponent
 from trapper_client.components.ObservationsComponent import ObservationsComponent
 from trapper_client.components.ResourcesComponent import ResourcesComponent
+import logging
 
+logger = logging.getLogger(__name__)
 
 @attr.s
 class MediaComponent(TrapperAPIComponent):
@@ -18,94 +21,37 @@ class MediaComponent(TrapperAPIComponent):
 
     Provides methods to retrieve and download media files from classification projects.
     """
+    _endpoint = "/media_classification/api/media/{cp}/"
+    _schema = Schemas.TrapperMediaList
 
     explicit_fields = [
-        # Parámetros principales
         "project",
         "owner",
         "deployment",
-        "collection",
+#        "collection", --> overridden in self. get_by_collection (resol collection_id through CollectionsComponent)
         "locations_map",
         "status",
         "status_ai",
-
-        # Filtros de fecha y hora
         "rdate_from",
         "rdate_to",
         "rtime_from",
         "rtime_to",
-
-        # Tipo de archivo
         "ftype",
-
-        # Estado de clasificación
         "classified",
         "classified_ai",
         "bboxes",
-
-        # Atributos estándar
+        # Dynamic attributes related to observations
         "species",
         "observation_type",
         "sex",
         "age",
-
         # Atributos personalizados (definidos en cada proyecto)
         # se agregan dinámicamente, por ejemplo:
         # "weather", "temperature", "habitat", etc.
     ]
 
-    def __attrs_post_init__(self):
-        """
-        Initialize the component with media endpoint and schema.
-        """
-        self._endpoint = "/media_classification/api/media/{cp}/"
-        self._schema = Schemas.TrapperMediaList
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        for field in cls.explicit_fields:
-
-            def make_getter(f=field, all_results=False):  # ← aquí se fija el valor
-                prefix = "get_all_by_" if all_results else "get_by_"
-                method_name = f"{prefix}{f}"
-
-                def getter(self, cp_id, value, query=None, filter_fn=None, endpoint=None):
-                    query = query or {}
-                    if isinstance(value, list):
-                        value = ",".join(map(str, value))
-                    query[f] = value
-                    endpoint = endpoint or self._endpoint.format(cp=cp_id)
-                    if all_results:
-                        return self.get_all(query, filter_fn=filter_fn, endpoint=endpoint)
-                    return self.get(query, filter_fn=filter_fn, endpoint=endpoint)
-
-                getter.__name__ = method_name
-                getter.__doc__ = f"""
-    Auto-generated method for querying Media by field '{f}' within a classification project.
-
-    Parameters
-    ----------
-    cp_id : int
-        ID of the classification project.
-    value : Any
-        Value to filter by for field '{f}'.
-    query : dict, optional
-        Additional query parameters.
-    filter_fn : callable, optional
-        Local filter function.
-    endpoint : str, optional
-        Endpoint override.
-
-    Returns
-    -------
-    T
-        Filtered results from the API.
-    """
-                return getter
-
-            setattr(cls, f"get_by_{field}", make_getter(field))
-            setattr(cls, f"get_all_by_{field}", make_getter(field, all_results=True))
 
     def _download_trapper_media_list(self, media_list: Schemas.TrapperMediaList, zip_filename_base: str = None) -> List[
         str]:
@@ -185,28 +131,7 @@ class MediaComponent(TrapperAPIComponent):
             "MediaComponent does not support get_all(). Use get_by_classification_project(cp_id) instead."
         )
 
-    def get_by_classification_project(self, cp_id: int, query: dict = None) -> T:
-        """
-        Retrieve media from a specific classification project.
-
-        Parameters
-        ----------
-        cp_id : int
-            The ID of the classification project (replaces {cp} in the endpoint).
-        query : dict, optional
-            Optional search/pagination parameters.
-
-        Returns
-        -------
-        Schemas.TrapperMediaList
-            Media items associated with the specified classification project.
-        """
-
-        endpoint = self._endpoint.format(cp=cp_id)
-        res = self._client.get_all_pages(endpoint, query)
-        return self._schema(**res)
-
-    def get_by_classification_project_and_collection(self, cp_id: int, c_id:int, query: dict = None) -> T:
+    def get_by_collection(self, cp_id: int, c_id:int, query: dict = None) -> T:
         """
         Retrieve media from a specific classification project and collection.
 
@@ -224,19 +149,27 @@ class MediaComponent(TrapperAPIComponent):
         Schemas.TrapperMediaList
             Media items associated with the specified classification project and collection.
         """
-        resources: ResourcesComponent = ResourcesComponent(self._client)
 
-        collection_resources = resources.get_by_collection(c_id)
-        media_ids : Set[str] = { resource.pk for resource in collection_resources.results }
+        collections:CollectionsComponent = CollectionsComponent(self._client)
+        results = collections.get_by_classification_project(cp_id)
+        logger.info(results)
 
-        endpoint = self._endpoint.format(cp=cp_id)
-        res = Schemas.TrapperMediaList(**self._client.get_all_pages(endpoint, query))
-        filtered = [entry for entry in res.results if entry.mediaID in media_ids]
-        res.pagination.count = len(filtered)
-        res.results = filtered
+        collection_inter_id = [ r.pk for r in results.results if r.collection_pk == c_id ]
+
+        if len(collection_inter_id) == 0:
+            # No hay colecciones asociadas al proyecto de clasificacion
+            return Schemas.TrapperMediaList(**{"pagination": {"count":0, "next":None, "previous":None}, "results":[]})
+
+        q = query.copy() if query else {}
+        q["collection"] = ",".join(map(str, collection_inter_id))
+
+        res = super().get_all(
+                query = q,
+                filter_fn = None,
+                endpoint = self._endpoint.format(cp=cp_id),
+        )
 
         return res
-
 
     def get_by_classification_project_only_animals(self, cp_id: int, query: dict = None) -> T:
         """
@@ -357,4 +290,4 @@ class MediaComponent(TrapperAPIComponent):
         return zip_files
 
 ## Fuerzo que se cree los métodos dinámicos,
-MediaComponent.__init_subclass__()
+#   MediaComponent.__init_subclass__()

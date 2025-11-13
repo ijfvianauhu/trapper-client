@@ -120,6 +120,7 @@ class APIClientBase:
         headers, auth = self._auth()
         url = self.base_url.rstrip("/") + "/" + endpoint.lstrip("/")
         logger.debug(f"Making {method} request to {endpoint}")
+        logger.debug("Query: " +   "&".join([f"{k}={v}" for k,v in query.items()]) if query else "None")
         session = requests.Session()
 
         logger.debug(f"Request headers: {headers}")

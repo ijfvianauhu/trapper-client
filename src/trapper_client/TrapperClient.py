@@ -18,7 +18,10 @@ from trapper_client.components.DeploymentsComponent import DeploymentsComponent
 from trapper_client.components.ClassificationProjectsComponent import ClassificationProjectsComponent
 from trapper_client.components.ResearchProjectsComponent import ResearchProjectsComponent
 from trapper_client.components.MediaComponent import MediaComponent
-from trapper_client.components.ObservationsComponent import ObservationsComponent
+from trapper_client.components.ObservationsComponent import ObservationsComponent, AIObservationsComponent, \
+    UserObservationsComponent
+from trapper_client.components.PackageComponent import PackagesComponent
+
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
@@ -89,8 +92,13 @@ class TrapperClient:
         self.resources: ResourcesComponent = ResourcesComponent(self.raw)
         self.media: MediaComponent = MediaComponent(self.raw)
         self.observations: ObservationsComponent = ObservationsComponent(self.raw)
+        self.aiobservations: AIObservationsComponent = AIObservationsComponent(self.raw)
+        self.userobservations: UserObservationsComponent = UserObservationsComponent(self.raw)
+
+
         self.classificators: ClassificatorsComponent = ClassificatorsComponent(self.raw)
         self.collections: CollectionsComponent = CollectionsComponent(self.raw)
+        self.packages: PackagesComponent = PackagesComponent(self.raw)
 
     @classmethod
     def from_environment(cls) -> "TrapperClient":

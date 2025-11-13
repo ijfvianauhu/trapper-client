@@ -371,9 +371,10 @@ class TrapperMediaList(BaseModel):
     pagination: Pagination
     results: List[TrapperMedia]
 
-###
+### ####################################################################################################################
 ### Observations
-###
+### ####################################################################################################################
+
 
 class TrapperResourceC(BaseModel):
     pk: int
@@ -463,8 +464,107 @@ class TrapperUserClassification(BaseModel):
     delete_data: Optional[str]
 
 #ClassificationResultsView.
-class TrapperCPObservation(BaseModel):
+class TrapperObservationResults(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     observationID: int
+    deploymentID: str
+    mediaID: int
+    eventID: str
+    eventStart: datetime
+    eventEnd: datetime
+    observationLevel: str
+    observationType: str
+    cameraSetupType: Optional[str]
+    scientificName: Optional[str]
+    count: Optional[int]
+    lifeStage: Optional[str]
+    sex: Optional[str]
+    behavior: Optional[str]
+    individualID: Optional[str]
+    individualPositionRadius: Optional[str]
+    individualPositionAngle: Optional[str]
+    individualSpeed: Optional[str]
+    classificationMethod: Optional[str]   # No aparece en AI y User
+    classifiedBy: Optional[str]
+    classificationTimestamp: Optional[datetime]
+    classificationProbability: Optional[float]
+    observationTags: Optional[str]
+    observationComments: Optional[str]
+
+    @field_validator("*", mode="before")
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+
+        return v
+
+    @field_validator("classificationProbability", "mediaID", "count", "observationID", mode="before")
+    def convert_to_float_or_int(cls, v):
+        if v in (None, ""):
+            return None
+        try:
+            s = str(v)
+            if "." in s:
+                return float(s)
+            return int(s)
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("classificationTimestamp", mode="before")
+    def parse_datetime(cls, v):
+        if not v:
+            return None
+        from datetime import datetime
+        try:
+            return datetime.fromisoformat(v)
+        except ValueError:
+            return None
+
+class TrapperObservationResultsTrapper(TrapperObservationResults):
+    countNew: Optional[int]
+    englishName: Optional[str]
+    bboxes: Optional[List[List[float]]]
+    id: Optional[str] = Field(..., alias="_id", description="Internal database identifier")
+
+
+    @field_validator("bboxes", mode="before")
+    def parse_bboxes(cls, v):
+        import json, ast
+        if v in (None, "", []):  # vacío → lo dejo igual
+            return v
+        if isinstance(v, str):
+            try:
+                # primero intento JSON normal
+                return json.loads(v)
+            except Exception:
+                try:
+                    # si no es JSON válido, intento evaluarlo como lista de Python
+                    return ast.literal_eval(v)
+                except Exception:
+                    raise ValueError(f"Invalid bboxes format: {v}")
+
+        return v
+
+class TrapperObservationResultsCTDP(TrapperObservationResults):
+    bboxX: Optional[float] = None
+    bboxY: Optional[List[float]] = None
+    bboxWidth: Optional[float] = None
+    bboxHeight: Optional[float] = None
+
+    @field_validator("bboxX", "bboxY", "bboxWidth", "bboxHeight", mode="before")
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+        return v
+
+class TrapperAIObservationResults(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     deploymentID: str
     mediaID: int
     eventID: str
@@ -474,9 +574,7 @@ class TrapperCPObservation(BaseModel):
     observationType: str
     cameraSetupType: Optional[str] = None
     scientificName: Optional[str] = None
-    englishName: Optional[str] = None
     count: Optional[int] = None
-    countNew: Optional[int] = None
     lifeStage: Optional[str] = None
     sex: Optional[str] = None
     behavior: Optional[str] = None
@@ -484,20 +582,37 @@ class TrapperCPObservation(BaseModel):
     individualPositionRadius: Optional[str] = None
     individualPositionAngle: Optional[str] = None
     individualSpeed: Optional[str] = None
-
-    bboxes: Optional[List[List[float]]] = None
-    classificationMethod: Optional[str] = None
     classifiedBy: Optional[str] = None
     classificationTimestamp: Optional[datetime] = None
     classificationProbability: Optional[float] = None
-    observationTags: Optional[str] = None
-    observationComments: Optional[str] = None
-    id: Optional[str] = Field(None, alias="_id", description="Internal database identifier")
 
-    @field_validator("count", "countNew", "bboxes", "classificationTimestamp","classificationProbability", "observationTags", mode="before")
+    @field_validator("count", "classificationTimestamp","classificationProbability", mode="before")
     def empty_string_to_none(cls, v):
         if v == "":
             return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+        return v
+
+class TrapperAIObservationResultsTrapper(TrapperAIObservationResults):
+    observationID: Optional[str]
+    countNew: Optional[int] = None
+    englishName: Optional[str] = None
+    bboxes: Optional[List[List[float]]] = None
+    id: Optional[str] = Field(None, alias="_id", description="Internal database identifier")
+
+    @field_validator("countNew", "bboxes", mode="before")
+    def empty_string_to_none_2(cls, v):
+        if v == "":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
         return v
 
     @field_validator("bboxes", mode="before")
@@ -515,6 +630,23 @@ class TrapperCPObservation(BaseModel):
                     return ast.literal_eval(v)
                 except Exception:
                     raise ValueError(f"Invalid bboxes format: {v}")
+
+        return v
+
+class TrapperAIObservationResultsCTDP(TrapperAIObservationResults):
+    bboxesX: Optional[float] = None
+    bboxesY: Optional[List[float]] = None
+    bboxWidth: Optional[float] = None
+    bboxHeight: Optional[float] = None
+
+    @field_validator("bboxesY", "bboxesX", "bboxWidth", "bboxHeight", mode="before")
+    def empty_string_to_none_2(cls, v):
+        if v == "":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
 
         return v
 
@@ -558,7 +690,24 @@ class ClassificationResultsAgg(BaseModel):
 class TrapperClassificationList(BaseModel):
     pagination: Pagination
     #results: List[Union[TrapperClassification, TrapperAIClassification, TrapperUserClassification]]
-    results: List[Union[TrapperClassification, TrapperAIClassification, TrapperUserClassification, TrapperCPObservation, ClassificationResultsAgg]]
+    results: List[Union[TrapperClassification
+                        , TrapperAIClassification
+                        , TrapperUserClassification
+                        , TrapperObservationResults
+                        , TrapperAIObservationResults
+    #                    , ClassificationResultsAgg
+    ]]
+
+class TrapperClassificationResultsList(BaseModel):
+    pagination: Pagination
+    #results: List[Union[TrapperClassification, TrapperAIClassification, TrapperUserClassification]]
+    results: List[Union[
+                          TrapperObservationResultsCTDP
+                        , TrapperObservationResultsTrapper
+                        , TrapperAIObservationResultsTrapper
+                        , TrapperAIObservationResultsCTDP
+        #                   , ClassificationResultsAgg
+    ]]
 
 
 class TrapperObservationList(BaseModel):

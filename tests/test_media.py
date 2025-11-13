@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from trapper_client.TrapperClient import TrapperClient
 from trapper_client.Schemas import TrapperMedia
 
+logger = logging.getLogger(__name__)
+
 #
 # pytest -o log_cli=true --log-cli-level=DEBUG
 #
@@ -73,7 +75,8 @@ VALIDATIONS = {
     "cp_id, filter_name,filter_value",
     [
         (33, "project", 33),
-        (33, "collection", "47"),
+        (33, "deployment", 660),
+        (33, "collection", 47),
     ]
 
 
@@ -90,7 +93,7 @@ def test_trapper_client_classificator_filters(trapper_client, cp_id, filter_name
         pytest.skip(f"Method {method_name} not implemented")
 
     method = getattr(trapper_client.media, method_name)
-
+    logger.info(f"Calling method {method_name}")
     import inspect
     logging.info(trapper_client.media)
     logging.info(inspect.signature(trapper_client.media.get_by_project))
