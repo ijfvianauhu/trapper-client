@@ -11,6 +11,8 @@ from trapper_client.APIClientBase import APIClientBase
 import attr
 import logging
 
+from trapper_client.APIQuery import APIQuery
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -206,6 +208,30 @@ class TrapperAPIComponent:
         if filter_fn:
             parsed.results = [r for r in parsed.results if filter_fn(r)]
         return parsed
+
+    def where(self, filter_fn: Callable[[T], bool] = None, **query):
+        """
+        Igual que Zooniverse: devuelve un iterador estilo cursor
+        que carga página a página.
+        """
+        return APIQuery(
+            client=self._client,
+            endpoint=self._endpoint,
+            query=query,
+            schema=self._schema
+        )
+
+    def first(self, **filters):
+        try:
+            return next(iter(self.where(**filters)))
+        except StopIteration:
+            return None
+
+    def last(self, **filters):
+        last_item = None
+        for item in self.where(**filters):
+            last_item = item
+        return last_item
 
     def get_all_filtered(
         self,
