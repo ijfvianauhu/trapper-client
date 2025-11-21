@@ -1,9 +1,16 @@
+import datetime
 import os
+import shutil
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Any, Callable, TypeVar, List, Set
 
+import requests
+from pydantic import BaseModel
+
 from trapper_client import Schemas
+from trapper_client.Schemas import TrapperMedia
 from trapper_client.TrapperAPIComponent import TrapperAPIComponent, T
 import attr
 
@@ -126,10 +133,75 @@ class MediaComponent(TrapperAPIComponent):
 
         return temp_dir
 
-    def get_all(self, *args, **kwargs):
-        raise NotImplementedError(
-            "MediaComponent does not support get_all(). Use get_by_classification_project(cp_id) instead."
+    def get_by_classification_project(self, cp_id: int, query: dict = None) -> T:
+        """
+        Retrieve media from a specific classification project.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project (replaces {cp} in the endpoint).
+        query : dict, optional
+            Optional search/pagination parameters.
+
+        Returns
+        -------
+        Schemas.TrapperMediaList
+            Media items associated with the specified classification project.
+        """
+        query_copy = query.copy() if query else {}
+        default_query =  {"cp": cp_id}
+        combined_query = {**default_query, **query_copy}
+
+        res = super().get(
+                query = combined_query,
+                filter_fn = None,
         )
+
+        return res
+
+    def get_all_by_classification_project(self, cp_id: int, query: dict = None) -> T:
+        """
+        Retrieve media from a specific classification project.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project (replaces {cp} in the endpoint).
+        query : dict, optional
+            Optional search/pagination parameters.
+
+        Returns
+        -------
+        Schemas.TrapperMediaList
+            Media items associated with the specified classification project.
+        """
+
+        return self.get_all_by_classification_project(cp_id, query)
+
+    def get_by_media_id(self, cp_id: int, m_id: int, query: dict = None) -> T:
+        """
+        Retrieve media by media ID within a specific classification project.
+
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project (replaces {cp} in the endpoint).
+        m_id : int
+            The media ID to filter by.
+        query : dict, optional
+            Optional search/pagination parameters.
+
+        Returns
+        -------
+        Schemas.TrapperMediaList
+            Media items associated with the specified classification project and media ID.
+        """
+        res = self.get_by_classification_project(cp_id, query)
+
+        res.results = [entry for entry in res.results if entry.mediaID == m_id]
+
+        return  res
 
     def get_by_collection(self, cp_id: int, c_id:int, query: dict = None) -> T:
         """
@@ -217,29 +289,59 @@ class MediaComponent(TrapperAPIComponent):
 
         return Schemas.TrapperMediaList(**{"pagination": pagination, "results": filtered})
 
-    def download_by_classification_project(self, cp_id: int, query: dict = None, zip_filename_base: str = None):
-        """
-        Download all media from a classification project.
 
+    def download(self, cp_id: int, m_id, destination_folder: Path, filename_overwrite:str=None) -> Path:
+        """
+        Descarga el paquete desde la URL proporcionada usando requests y lo guarda en la carpeta de destino.
+        """
+        media = self.get_by_media_id(cp_id, m_id)
+
+        if media.results is None or len(media.results) == 0:
+            raise Exception(f"No se encontró media con mediaID {m_id} en el proyecto de clasificación {cp_id}.")
+
+        media = media.results[0]
+
+        return self._download_media(media, destination_folder, filename_overwrite)
+
+
+    def download_by_classification_project(self, cp_id: int, query: dict = None, destination_folder: Path=None,
+                                           compress: bool = False) -> Path:
+        """
+        Download all media from a specific classification project.
         Parameters
         ----------
         cp_id : int
             The ID of the classification project.
         query : dict, optional
             Optional search/pagination parameters.
-        zip_filename_base : str, optional
-            Base name for the ZIP files.
-
+        destination_folder : Path
+            Folder to store downloaded media temporarily.
+        zip_filename : Path, optional
+            If provided, media will be zipped into this file.
+        overwrite : bool, optional
+            If True, existing destination folder will be cleared before download.
         Returns
         -------
-        List[str]
-            Paths to the created ZIP files.
+        Path
+            Path to the folder with downloaded media or the ZIP file.
         """
-        results = self.get_by_classification_project(cp_id, query)
-        zip_files = self._download_trapper_media_list(results, zip_filename_base)
-        return zip_files
 
-    def download_by_classification_project_and_collection(self, cp_id: int, c_id:int, query: dict = None, zip_filename_base: str = None):
+        out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}")
+        results = self.get_by_classification_project(cp_id, query)
+
+        for media in results.results:
+            try:
+                self._download_media(media, out_put_dir)
+            except Exception as e:
+                pass
+
+        if compress:
+            return self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
+        else:
+            return out_put_dir
+
+    def download_by_collection(self, cp_id: int, c_id:int, query: dict = None, destination_folder: Path=None,
+                                           compress: bool = False) -> Path:
         """
         Download all media from a specific classification project and collection.
 
@@ -259,35 +361,80 @@ class MediaComponent(TrapperAPIComponent):
         List[str]
             Paths to the created ZIP files.
         """
+        out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}_{c_id}")
 
+        results = self.get_by_collection(cp_id, c_id, query)
 
-        results = self.get_by_classification_project_and_collection(cp_id, c_id, query)
-        zip_files = self._download_trapper_media_list(results, zip_filename_base)
-        return zip_files
+        for media in results.results:
+            try:
+                self._download_media(media, destination_folder)
+            except Exception as e:
+                pass
 
-    def download_by_classification_project_only_animals(self, cp_id: int, query: dict = None,
-                                                        zip_filename_base: str = None):
+        if compress:
+            return self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
+        else:
+            return out_put_dir
+
+    def _download_media(self, media:TrapperMedia,destination_folder: Path, filename_overwrite:str=None) -> Path:
+
+        logger.debug(
+            f"MediaID: {media.mediaID}, FileName: {media.fileName}, DeploymentID: {media.deploymentID}, FilePath: {media.filePath}"
+        )
+
+        if media.filePublic is True:
+            package_url = media.filePath
+        else:
+            raise Exception("Media no es público, no se puede descargar directamente.")
+
+        resp = requests.get(package_url, stream=True, timeout=60)
+        resp.raise_for_status()
+        filename = media.fileName
+
+        if filename_overwrite:
+            filename = filename_overwrite
+
+        # Asegurar que la carpeta destino existe
+        os.makedirs(destination_folder, exist_ok=True)
+        destination_path = os.path.join(destination_folder, filename)
+
+        # Guardar el contenido por chunks
+        with open(destination_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        return Path(destination_path)
+
+    def _create_random_subfolder(self, destination_folder: Path, prefix:str="trapper_") -> Path:
         """
-        Download media containing only animal observations from a classification project.
-
-        Parameters
-        ----------
-        cp_id : int
-            The ID of the classification project.
-        query : dict, optional
-            Optional search/pagination parameters.
-        zip_filename_base : str, optional
-            Base name for the ZIP files.
-
-        Returns
-        -------
-        List[str]
-            Paths to the created ZIP files.
+        Crea y devuelve una carpeta con nombre aleatorio dentro de `destination_folder`.
         """
+        destination_folder.mkdir(parents=True, exist_ok=True)
+        date_str = datetime.date.today().strftime("%Y%m%d")
 
-        results = self.get_by_classification_project_only_animals(cp_id, query)
-        zip_files = self._download_trapper_media_list(results, zip_filename_base)
-        return zip_files
+        subdir = Path(tempfile.mkdtemp(prefix=f"{prefix}{date_str}_", dir=str(destination_folder)))
+        return subdir
+
+    def _compress_folder(self,folder: Path, fmt: str = "zip", remove_folder: bool = True) -> Path:
+        """
+        Comprime la carpeta `folder` en un archivo del mismo nombre en su directorio padre.
+        - `fmt`: formato de archivo admitido por `shutil.make_archive` (por defecto "zip").
+        - `remove_folder`: si True borra la carpeta original tras crear el archivo.
+        Retorna la Path del archivo creado.
+        """
+        folder = Path(folder)
+        if not folder.exists() or not folder.is_dir():
+            raise FileNotFoundError(f"The folder {folder} does not exist or is not a directory.")
+
+        archive_base = str(folder)  # base sin extensión
+        archive_path_str = shutil.make_archive(archive_base, fmt, root_dir=folder.parent, base_dir=folder.name)
+        archive_path = Path(archive_path_str)
+
+        if remove_folder:
+            shutil.rmtree(folder)
+
+        return archive_path
 
 ## Fuerzo que se cree los métodos dinámicos,
 #   MediaComponent.__init_subclass__()

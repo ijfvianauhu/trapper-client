@@ -60,6 +60,26 @@ class TrapperAPIComponent:
 
     explicit_fields = ["pk"]
 
+    def _resolve_endpoint(self, endpoint: str, query: dict | None):
+        """
+        Reemplaza variables del endpoint como /{cp}/ usando valores del query.
+        """
+        if not endpoint:
+            return endpoint
+
+        # buscar variables como {cp}
+        vars = re.findall(r"{(\w+)}", endpoint)
+
+        if vars:
+            query = query or {}
+            for var in vars:
+                val = query.get(var)
+                if val is None:
+                    raise ValueError(f"Missing endpoint variable '{var}' for endpoint '{endpoint}'")
+                endpoint = endpoint.replace(f"{{{var}}}", str(val))
+
+        return endpoint
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -167,7 +187,7 @@ class TrapperAPIComponent:
         T
             Pydantic model containing all retrieved results.
         """
-        actual_endpoint = endpoint or self._endpoint
+        actual_endpoint = self._resolve_endpoint(endpoint or self._endpoint, query)
         actual_schema = schema or self._schema
         logger.debug(f"TrapperAPIComponent.get_all called with endpoint: {actual_endpoint} and query: {query}")
         res = self._client.get_all_pages(actual_endpoint, query)
@@ -201,7 +221,7 @@ class TrapperAPIComponent:
         T
             Pydantic model containing retrieved results.
         """
-        actual_endpoint = endpoint or self._endpoint
+        actual_endpoint = self._resolve_endpoint(endpoint or self._endpoint, query)
         actual_schema = schema or self._schema
         res = self._client.get(actual_endpoint, query)
         parsed = actual_schema(**res)

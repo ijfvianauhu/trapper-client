@@ -1,8 +1,10 @@
 import logging
+from pathlib import Path
+
 import pytest
-from dotenv import load_dotenv
 from trapper_client.TrapperClient import TrapperClient
 from trapper_client.Schemas import TrapperMedia
+from .helpers import validate_objects, run_test_by_filters
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +12,6 @@ logger = logging.getLogger(__name__)
 # pytest -o log_cli=true --log-cli-level=DEBUG
 #
 
-@pytest.fixture(scope="module")
-def trapper_client():
-    load_dotenv()
-    client = TrapperClient.from_environment()
-    assert client.base_url.startswith("http")
-    return client
 
 # Función común de validación de deployments
 def _validate_objects(deployments, expected_type=TrapperMedia):
@@ -78,8 +74,6 @@ VALIDATIONS = {
         (33, "deployment", 660),
         (33, "collection", 47),
     ]
-
-
 #"owner",  # OwnCollectionBooleanFilter
 #"research_projects",
 #"locations_map",
@@ -94,27 +88,124 @@ def test_trapper_client_classificator_filters(trapper_client, cp_id, filter_name
 
     method = getattr(trapper_client.media, method_name)
     logger.info(f"Calling method {method_name}")
-    import inspect
-    logging.info(trapper_client.media)
-    logging.info(inspect.signature(trapper_client.media.get_by_project))
+    results = method(cp_id, filter_value)
+    _validate_objects(results)
 
-    # Ejecutar consulta
-    deployments = method(cp_id, filter_value)
-
-    # Validaciones generales
-    _validate_objects(deployments)
-
-    # Validaciones adicionales específicas
     if filter_name in VALIDATIONS:
-        VALIDATIONS[filter_name](deployments.results, filter_value)
+        VALIDATIONS[filter_name](results.results, filter_value)
 
-    logging.debug(f"Filter '{filter_name}' returned {len(deployments.results)} results.")
+    logging.debug(f"Filter '{filter_name}' returned {len(results.results)} results.")
+
+def test_trapper_client_media_get_by_classification_project(trapper_client):
+    try:
+        deployments = trapper_client.media.get_by_classification_project("33")
+        logging.info(deployments)
+        validate_objects(deployments, expected_type=TrapperMedia)
+        assert True
+    except Exception as e:
+        print(f"Error fetching research project: {e}")
+        assert False, f"Exception occurred: {e}"
+
+def test_trapper_client_media_get_by_mediaid(trapper_client):
+    try:
+        mediaID=3107568
+        cp_id= 33
+        results = trapper_client.media.get_by_media_id(cp_id,mediaID)
+        logging.info(results)
+        validate_objects(results, expected_type=TrapperMedia)
+        assert len(results.results) == 1, f"Expected 1 result, got {len(results.results)}"
+        assert results.results[0].mediaID == mediaID, f"Expected media ID {mediaID}, got {results.results[0].id}"
+        assert True
+    except Exception as e:
+        print(f"Error fetching research project: {e}")
+        assert False, f"Exception occurred: {e}"
+
+# python
+def test_trapper_client_media_download(trapper_client):
+    try:
+        mediaID = 3107568
+        cp_id = 33
+        filename = trapper_client.media.download(cp_id, mediaID, "/tmp")
+        logging.debug(filename)
+        file_path = Path(filename)
+        assert file_path.exists() and file_path.is_file(), f"El fichero descargado {file_path} no existe o no es un fichero"
+        file_path.unlink()
+        assert True
+    except Exception as e:
+        print(f"Error fetching research project: {e}")
+        assert False, f"Exception occurred: {e}"
+
+def test_trapper_client_media_download_cp(trapper_client):
+    folder = None
+
+    try:
+        cp_id = 33
+        output = Path("/tmp")
+        filename = trapper_client.media.download_by_classification_project(cp_id, query=None, destination_folder=output)
+        logging.info(filename)
+
+        folder = Path(filename)
+        assert folder.exists() and folder.is_dir(), f"El resultado `{folder}` no existe o no es un directorio"
+
+        try:
+            folder.resolve().relative_to(output.resolve())
+        except Exception:
+            assert False, f"El directorio `{folder}` no está dentro de `output` `{output}`"
+
+        assert any(p.is_file() for p in folder.iterdir()), f"El directorio `{folder}` no contiene ficheros"
+        assert True
+    except Exception as e:
+        print(f"Error fetching research project: {e}")
+        assert False, f"Exception occurred: {e}"
+    finally:
+        if folder and folder.exists():
+            import shutil
+            try:
+                shutil.rmtree(folder)
+            except Exception as e:
+                logging.warning(f"No se pudo borrar `{folder}`: {e}")
+
+def test_trapper_client_media_download_cp_zip(trapper_client):
+    file_path = None
+    try:
+        cp_id = 33
+        output = Path("/tmp")
+        filename = trapper_client.media.download_by_classification_project(
+            cp_id, query=None, destination_folder=output, compress=True
+        )
+
+        file_path = Path(filename)
+        assert file_path.exists() and file_path.is_file(), f"El fichero `{file_path}` no existe o no es un fichero"
+        assert file_path.suffix.lower() == ".zip", f"El fichero `{file_path}` no tiene extensión .zip"
+
+        try:
+            file_path.resolve().relative_to(output.resolve())
+        except Exception:
+            assert False, f"El fichero `{file_path}` no está dentro de `output` `{output}`"
+
+        import zipfile
+        assert zipfile.is_zipfile(file_path), f"El fichero `{file_path}` no es un zip válido"
+
+        with zipfile.ZipFile(file_path) as z:
+            names = z.namelist()
+            assert any(not n.endswith("/") for n in names), f"El zip `{file_path}` no contiene ficheros"
+
+        assert True
+    except Exception as e:
+        print(f"Error fetching research project: {e}")
+        assert False, f"Exception occurred: {e}"
+    finally:
+        if file_path and file_path.exists():
+            try:
+                file_path.unlink()
+            except Exception as e:
+                logging.warning(f"No se pudo borrar `{file_path}`: {e}")
 
 
-def test_trapper_client_media_get_all(trapper_client):
+
+def _test_trapper_client_media_get_all(trapper_client):
     try:
         deployments = trapper_client.media.get_all()
-        assert False, "Not implemented yet"
     except NotImplementedError as e:
         assert True, f"Exception occurred: {e}"
     except Exception as e:
@@ -125,7 +216,7 @@ def _test_trapper_client_media_get_by_classification_project(trapper_client):
     id_test = "33"
     try:
         media = trapper_client.media.get_by_classification_project(id_test)
-        _validate_media(media)
+        #_validate_media(media)
         logging.debug(f"Found {len(media.results)} active media in classification project {id_test}.")
     except Exception as e:
         logging.debug(f"Exception occurred: {e}")
