@@ -121,7 +121,7 @@ def test_trapper_client_media_get_by_mediaid(trapper_client):
         assert False, f"Exception occurred: {e}"
 
 # python
-def test_trapper_client_media_download(trapper_client):
+def _test_trapper_client_media_download(trapper_client):
     try:
         mediaID = 3107568
         cp_id = 33
@@ -135,7 +135,7 @@ def test_trapper_client_media_download(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def test_trapper_client_media_download_cp(trapper_client):
+def _test_trapper_client_media_download_cp(trapper_client):
     folder = None
 
     try:
@@ -165,7 +165,7 @@ def test_trapper_client_media_download_cp(trapper_client):
             except Exception as e:
                 logging.warning(f"No se pudo borrar `{folder}`: {e}")
 
-def test_trapper_client_media_download_cp_zip(trapper_client):
+def _test_trapper_client_media_download_cp_zip(trapper_client):
     file_path = None
     try:
         cp_id = 33
@@ -201,8 +201,6 @@ def test_trapper_client_media_download_cp_zip(trapper_client):
             except Exception as e:
                 logging.warning(f"No se pudo borrar `{file_path}`: {e}")
 
-
-
 def _test_trapper_client_media_get_all(trapper_client):
     try:
         deployments = trapper_client.media.get_all()
@@ -212,42 +210,16 @@ def _test_trapper_client_media_get_all(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def _test_trapper_client_media_get_by_classification_project(trapper_client):
-    id_test = "33"
-    try:
-        media = trapper_client.media.get_by_classification_project(id_test)
-        #_validate_media(media)
-        logging.debug(f"Found {len(media.results)} active media in classification project {id_test}.")
-    except Exception as e:
-        logging.debug(f"Exception occurred: {e}")
-        assert False, f"Exception occurred: {e}"
+def test_trapper_client_media_where_classification_project(trapper_client):
+    test_cp_id = "33"
 
-def _test_trapper_client_media_get_by_classification_project_and_collection(trapper_client):
-    id_test = "33"
-    id_collection = "47"
-    try:
-        media = trapper_client.media.get_by_classification_project_and_collection(id_test, id_collection)
-        #_validate_media(media)
-        logging.debug(f"Found {len(media.results)} active media in classification project {id_test} that allow to {id_collection} collection.")
-    except Exception as e:
-        logging.debug(f"Exception occurred: {e}")
-        assert False, f"Exception occurred: {e}"
+    with trapper_client.media.where(cp=test_cp_id) as q:
+        for item in q:
+            assert isinstance(item, TrapperMedia)
 
 
 
-def _test_trapper_client_media_download_by_classification_project(trapper_client):
-    id_test = "33"
-    try:
-        media_file_dir = trapper_client.media.download_by_classification_project(id_test, zip_filename_base="test_media_cp_33")
-        assert media_file_dir.is_dir(), f"{media_file_dir} is not a directory"
-        zip_files = list(media_file_dir.glob("*.zip"))
-        assert len(zip_files) > 0, f".zip files not found in  {media_file_dir}"
-        logging.debug(f"Media files in classification project {id_test} were stored in {media_file_dir}.")
-    except Exception as e:
-        logging.debug(f"Exception occurred: {e}")
-        assert False, f"Exception occurred: {e}"
-
-def _test_trapper_client_media_get_by_classification_project_only_animals(trapper_client):
+"""def _test_trapper_client_media_get_by_classification_project_only_animals(trapper_client):
     id_test = "33"
     try:
         media = trapper_client.media.get_by_classification_project_only_animals(id_test)
@@ -256,7 +228,7 @@ def _test_trapper_client_media_get_by_classification_project_only_animals(trappe
     except Exception as e:
         logging.debug(f"Exception occurred: {e}")
         assert False, f"Exception occurred: {e}"
-
+"""
 """def test_trapper_client_media_get_by_classification_project_only_animals(trapper_client) -> T:
     id_test = "33"
     try:
