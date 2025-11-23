@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import pytest
-from trapper_client.TrapperClient import TrapperClient
 from trapper_client.Schemas import TrapperMedia
 from .helpers import validate_objects, run_test_by_filters
 
@@ -121,7 +120,7 @@ def test_trapper_client_media_get_by_mediaid(trapper_client):
         assert False, f"Exception occurred: {e}"
 
 # python
-def _test_trapper_client_media_download(trapper_client):
+def test_trapper_client_media_download(trapper_client):
     try:
         mediaID = 3107568
         cp_id = 33
@@ -135,15 +134,14 @@ def _test_trapper_client_media_download(trapper_client):
         print(f"Error fetching research project: {e}")
         assert False, f"Exception occurred: {e}"
 
-def _test_trapper_client_media_download_cp(trapper_client):
+def test_trapper_client_media_download_cp(trapper_client):
     folder = None
 
     try:
         cp_id = 33
         output = Path("/tmp")
-        filename = trapper_client.media.download_by_classification_project(cp_id, query=None, destination_folder=output)
+        (filename, report) = trapper_client.media.download_by_classification_project(cp_id, query=None, destination_folder=output)
         logging.info(filename)
-
         folder = Path(filename)
         assert folder.exists() and folder.is_dir(), f"El resultado `{folder}` no existe o no es un directorio"
 

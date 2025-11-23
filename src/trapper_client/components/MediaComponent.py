@@ -3,13 +3,15 @@ import os
 import shutil
 import tempfile
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, Any, Callable, TypeVar, List, Set
+from typing import Dict, Any, Callable, TypeVar, List, Set, Union
 
 import requests
 from pydantic import BaseModel
 
 from trapper_client import Schemas
+from trapper_client.Reports import Report
 from trapper_client.Schemas import TrapperMedia
 from trapper_client.TrapperAPIComponent import TrapperAPIComponent, T
 import attr
@@ -290,22 +292,139 @@ class MediaComponent(TrapperAPIComponent):
         return Schemas.TrapperMediaList(**{"pagination": pagination, "results": filtered})
 
 
-    def download(self, cp_id: int, m_id, destination_folder: Path, filename_overwrite:str=None) -> Path:
+    def download(self, cp_id: int, m_id:Union[int, "TrapperMedia"], destination_folder: Path, filename_overwrite:str=None) -> Path:
         """
-        Descarga el paquete desde la URL proporcionada usando requests y lo guarda en la carpeta de destino.
+        Download a single media file.
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project.
+        m_id : int or TrapperMedia
+            The media ID to download or a TrapperMedia object.
+        destination_folder : Path
+            Folder to save the downloaded media.
+        filename_overwrite : str, optional
+            If provided, the downloaded file will be saved with this name.
+        Returns
+        -------
+        Path
+            Path to the downloaded media file.
         """
-        media = self.get_by_media_id(cp_id, m_id)
 
-        if media.results is None or len(media.results) == 0:
-            raise Exception(f"No se encontró media con mediaID {m_id} en el proyecto de clasificación {cp_id}.")
+        if not isinstance(m_id, int):
+            media = m_id
+            if cp_id is not None:
+                raise ValueError("Si se pasa un TrapperMedia, no se debe especificar cp_id.")
+        else:
+            media = self.get_by_media_id(cp_id, m_id)
 
-        media = media.results[0]
+            if media.results is None or len(media.results) == 0:
+                raise Exception(f"No se encontró media con mediaID {m_id} en el proyecto de clasificación {cp_id}.")
+
+            media = media.results[0]
 
         return self._download_media(media, destination_folder, filename_overwrite)
 
+    def download_one(self, cp_id: int, m_id:Union[int, "TrapperMedia"], destination_folder: Path,
+                     filename_overwrite:str=None) -> Path:
+        """
+        Download a single media file.
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project.
+        m_id : int or TrapperMedia
+            The media ID to download or a TrapperMedia object.
+        destination_folder : Path
+            Folder to save the downloaded media.
+        filename_overwrite : str, optional
+            If provided, the downloaded file will be saved with this name.
+        Returns
+        -------
+        Path
+            Path to the downloaded media file.
+        """
+        return self.download(cp_id, m_id, destination_folder, filename_overwrite)
+
+    def download_many(
+        self,
+        cp_id: int,
+        medias: List[Union[int, "TrapperMedia"]],
+        destination_folder: Path,
+        compress: bool = False,
+        max_workers=2,
+        callback: callable = None
+    ) -> (Path, Report):
+
+        """
+        Download multiple media files concurrently.
+        Parameters
+        ----------
+        cp_id : int
+            The ID of the classification project.
+        medias : List[Union[int, TrapperMedia]]
+            List of media IDs or TrapperMedia objects to download.
+        destination_folder : Path
+            Folder to store downloaded media temporarily.
+        compress : bool, optional
+            If True, media will be zipped into a single file. Default is False.
+        max_workers : int, optional
+            Number of concurrent download workers. Default is 2.
+        callback : callable, optional
+            Optional callback function for progress updates.
+        Returns
+        -------
+        Path
+            Path to the folder with downloaded media or the ZIP file.
+        Report
+            Report object with details of the download process.
+        """
+        report:Report = Report(title=f"Downloading {len(medias)} media(s)")
+
+        out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}")
+
+        def _notify(event: str, sid: int, name, level = 0, total=None, step=None):
+            if callback:
+                try:
+                    callback(event, sid, name, total, step)
+                except Exception as e:
+                    raise e
+                    # self.logger.debug("Callback raised an exception", exc_info=True)
+
+        # Wrapper to notify when thread starts
+        def _worker(item):
+            media_id = item if isinstance(item, int) else item.mediaID
+            _notify("start", media_id, "Downloading file", level=1, total=None, step=0)
+            return self.download(cp_id, item, out_put_dir)
+
+        _notify("start", cp_id, "Downloading medias", level = 0, total=len(medias), step=0)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Lanzamos cada descarga como una tarea independiente
+            futures = {executor.submit(_worker, item): item for item in medias}
+
+            for future in as_completed(futures):
+                item = futures[future]
+                try:
+                    media_id = item if isinstance(item, int) else item.mediaID
+                    ok = future.result()  # devuelve Path
+                    report.add_success(str(media_id),"download", ok)
+                    _notify("end", media_id, "Downloading file", level=1, total=None, step=1)
+
+                except Exception as e:
+                    _notify("fail", media_id, "Downloading file", level=1, total=None, step=1)
+                    report.add_error(str(media_id), "download", str(e))
+
+        if compress:
+            out_put_dir= self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
+        report.finish()
+
+        _notify("end", cp_id, "Downloading medias", level = 0, total=len(medias), step=0)
+
+        return out_put_dir, report
 
     def download_by_classification_project(self, cp_id: int, query: dict = None, destination_folder: Path=None,
-                                           compress: bool = False) -> Path:
+                                    compress: bool = False, workers = 2, callback: callable = None) -> (Path, Report):
         """
         Download all media from a specific classification project.
         Parameters
@@ -316,32 +435,27 @@ class MediaComponent(TrapperAPIComponent):
             Optional search/pagination parameters.
         destination_folder : Path
             Folder to store downloaded media temporarily.
-        zip_filename : Path, optional
+        compress : Path, optional
             If provided, media will be zipped into this file.
-        overwrite : bool, optional
-            If True, existing destination folder will be cleared before download.
+        workers : int, optional
+            Number of concurrent download workers. Default is 2.
+        callback : callable, optional
+            Optional callback function for progress updates.
         Returns
         -------
         Path
             Path to the folder with downloaded media or the ZIP file.
+        Report
+            Report object with details of the download process.
         """
 
         out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}")
         results = self.get_by_classification_project(cp_id, query)
 
-        for media in results.results:
-            try:
-                self._download_media(media, out_put_dir)
-            except Exception as e:
-                pass
-
-        if compress:
-            return self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
-        else:
-            return out_put_dir
+        return self.download_many(None, results.results, out_put_dir, compress, workers, callback)
 
     def download_by_collection(self, cp_id: int, c_id:int, query: dict = None, destination_folder: Path=None,
-                                           compress: bool = False) -> Path:
+                                           compress: bool = False, workers = 2, callback: callable = None) -> (Path, Report):
         """
         Download all media from a specific classification project and collection.
 
@@ -353,34 +467,49 @@ class MediaComponent(TrapperAPIComponent):
             The ID of the collection.
         query : dict, optional
             Optional search/pagination parameters.
-        zip_filename_base : str, optional
+        destination_folder : Path
+            Folder to store downloaded media temporarily.
+        compress : str, optional
             Base name for the ZIP files.
+        workers : int, optional
+            Number of concurrent download workers. Default is 2.
+        callback : callable, optional
+            Optional callback function for progress updates.
 
         Returns
         -------
-        List[str]
-            Paths to the created ZIP files.
-        """
-        out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}_{c_id}")
+        Path
+            Path to the folder with downloaded media or the ZIP file.
+        Report
+            Report object with details of the download process.
 
+        """
+
+        out_put_dir = self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}")
         results = self.get_by_collection(cp_id, c_id, query)
 
-        for media in results.results:
-            try:
-                self._download_media(media, destination_folder)
-            except Exception as e:
-                pass
-
-        if compress:
-            return self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
-        else:
-            return out_put_dir
+        return self.download_many(None, results.results, out_put_dir, compress, workers, callback)
 
     def _download_media(self, media:TrapperMedia,destination_folder: Path, filename_overwrite:str=None) -> Path:
-
+        """
+        Download a single media file.
+        Parameters
+        ----------
+        media : TrapperMedia
+            The media item to download.
+        destination_folder : Path
+            Folder to save the downloaded media.
+        filename_overwrite : str, optional
+            If provided, the downloaded file will be saved with this name.
+        Returns
+        -------
+        Path
+            Path to the downloaded media file.
+        """
         logger.debug(
             f"MediaID: {media.mediaID}, FileName: {media.fileName}, DeploymentID: {media.deploymentID}, FilePath: {media.filePath}"
         )
+
 
         if media.filePublic is True:
             package_url = media.filePath
