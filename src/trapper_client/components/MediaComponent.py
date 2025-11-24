@@ -383,7 +383,7 @@ class MediaComponent(TrapperAPIComponent):
 
         out_put_dir =self._create_random_subfolder(destination_folder, prefix=f"trapper_download_media_{cp_id}")
 
-        def _notify(event: str, sid: int, name, level = 0, total=None, step=None):
+        def _notify(event: str, sid: int, name, total=None, step=None):
             if callback:
                 try:
                     callback(event, sid, name, total, step)
@@ -394,10 +394,10 @@ class MediaComponent(TrapperAPIComponent):
         # Wrapper to notify when thread starts
         def _worker(item):
             media_id = item if isinstance(item, int) else item.mediaID
-            _notify("start", media_id, "Downloading file", level=1, total=None, step=0)
+            _notify("start", media_id, "Downloading file", total=None, step=0)
             return self.download(cp_id, item, out_put_dir)
 
-        _notify("start", cp_id, "Downloading medias", level = 0, total=len(medias), step=0)
+        _notify("start", cp_id, "Downloading medias",  total=len(medias), step=0)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Lanzamos cada descarga como una tarea independiente
@@ -408,18 +408,18 @@ class MediaComponent(TrapperAPIComponent):
                 try:
                     media_id = item if isinstance(item, int) else item.mediaID
                     ok = future.result()  # devuelve Path
-                    report.add_success(str(media_id),"download", ok)
-                    _notify("end", media_id, "Downloading file", level=1, total=None, step=1)
+                    report.add_success(str(media_id),"download", str(ok))
+                    _notify("end", media_id, "Downloading file", total=None, step=1)
 
                 except Exception as e:
-                    _notify("fail", media_id, "Downloading file", level=1, total=None, step=1)
+                    _notify("fail", media_id, "Downloading file", total=None, step=1)
                     report.add_error(str(media_id), "download", str(e))
 
         if compress:
             out_put_dir= self._compress_folder(out_put_dir, fmt="zip", remove_folder=True)
         report.finish()
 
-        _notify("end", cp_id, "Downloading medias", level = 0, total=len(medias), step=0)
+        _notify("end", cp_id, "Downloading medias", total=len(medias), step=0)
 
         return out_put_dir, report
 
